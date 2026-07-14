@@ -8,6 +8,47 @@ This repo is a fork of `google/eclipsa-audio-plugin`. A-CX develops here and
 contributes selected changes back upstream. The rules below keep A-CX tooling
 (`.a-cx/`, `.claude/`, `AGENTS.md`, `CLAUDE.md`) out of anything Google sees.
 
+## Local setup (do this once per machine)
+
+This fork has the **same repo name** as the Google upstream
+(`eclipsa-audio-plugin`). To avoid confusing your A-CX clone with a plain clone
+of Google's repo, put the A-CX clone under a `withACX/` parent folder:
+
+```bash
+mkdir -p ~/dev/withACX && cd ~/dev/withACX
+git clone https://github.com/WithACX/eclipsa-audio-plugin.git
+cd eclipsa-audio-plugin
+
+git remote add upstream https://github.com/google/eclipsa-audio-plugin.git  # if not present
+git lfs install                     # this repo uses Git LFS
+git checkout acx/dev                # the working branch (tooling lives here)
+```
+
+Then, inside the clone, run `/setup-repo` in Claude Code once. It installs the
+local `pre-push` guard (not committed, so every fresh clone needs this) and the
+`/upstream-pr` helper. Confirm remotes: `origin` = the fork, `upstream` = Google.
+
+## Where to run the delivery commands
+
+The project splits code (this fork) from planning (a separate repo). Run each
+command where its work lands:
+
+| Command | Run it in | Why |
+|---|---|---|
+| `/deliver-plan WithACX/eclipsa-audio-planning ...` | anywhere (takes the repo as an argument) | Writes objectives/phases/backlog and files issues in the planning repo. |
+| `/deliver-code` (and `/orchestrate`, `/review`, build/test) | **this fork's clone** | Code changes, commits, and PRs happen here. It reads issues, the board, and plan docs from the planning repo via `tracker.repo` in `.a-cx/github.yaml`. |
+
+So: plan in the planning repo, build here. `/deliver-code` never needs the
+planning repo checked out -- the `tracker.repo` setting points it there over the
+API.
+
+## Releases and versions
+
+Official releases and version tags (e.g. `v1.4.4`) live on the **Google
+upstream** as GitHub Releases. This fork only mirrors those tags via git; A-CX
+does not cut its own releases here. A new product version exists once the work
+is merged upstream and Google publishes the tag (see the installer note below).
+
 ## Branch model
 
 | Branch | Purpose | A-CX tooling? |

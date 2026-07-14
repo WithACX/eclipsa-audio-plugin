@@ -1,0 +1,12 @@
+# .a-cx/github.yaml -- A-CX project-management config for this fork.
+#
+# This is the CODE repo. Issues, the board, and plan docs live in a SEPARATE
+# planning repo. `tracker.repo` tells /deliver-code (run here) to resolve
+# board/issue/plan operations against the planning repo while making code
+# changes, commits, and PRs in this local working tree.
+provider: github
+tracker:
+  repo: WithACX/eclipsa-audio-planning
+project:
+  org: withACX
+  number: 1
