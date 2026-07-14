@@ -39,3 +39,6 @@ CMakeSettings.json
 
 # A-CX delivery worktrees (per-run, never committed)
 .a-cx/worktrees/
+
+# A-CX tooling scripts live here; override the [Bb]in/ build-artifact ignore above.
+!.a-cx/bin/
