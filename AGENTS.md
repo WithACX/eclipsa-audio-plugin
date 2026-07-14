@@ -1,0 +1,119 @@
+# Eclipsa Audio Plugins
+
+## Project Overview
+
+Eclipsa Audio Plugins are audio plugins for authoring and rendering
+immersive audio in the IAMF (Immersive Audio Model and Formats) ecosystem.
+The repo ships two plugins: an Audio Element plugin for authoring audio
+elements and a Renderer plugin for mixing and monitoring. Both build as
+VST3, AU, and AAX formats for macOS and Windows DAWs.
+
+This is a public fork of `google/eclipsa-audio-plugin`. A-CX contributes
+changes back upstream. See "Branch Topology and Upstream" before committing.
+
+"Groove" is A-CX's internal name for this project. It began as the private
+`WithACX/groove` repo, was upstreamed to `google/eclipsa-audio-plugin`, and
+A-CX now contributes through this fork. Internal planning lives in
+`WithACX/eclipsa-audio-planning`, tracked on the org "Groove" board
+(project #1).
+
+## Tech Stack
+
+- C++ (JUCE framework) for plugin UI and audio processing.
+- CMake 3.29+ with Ninja as the build generator.
+- vcpkg and CMake FetchContent for dependencies; Git LFS for binary assets.
+- Protobuf for serialized data structures.
+- Intel oneAPI MKL on Windows.
+- GoogleTest for unit tests.
+
+## Architecture
+
+- `audioelementplugin/` -- the Audio Element authoring plugin (`src/`, `test/`).
+- `rendererplugin/` -- the Renderer plugin (`src/`, `test/`).
+- `common/` -- code shared by both plugins:
+  - `components/` -- reusable JUCE UI components.
+  - `data_repository/` -- in-memory state repositories.
+  - `data_structures/` -- domain models and Protobuf-backed types.
+  - `processors/` -- audio processing nodes.
+  - `substream_rdr/` -- substream rendering.
+  - `logger/` -- logging.
+- `cmake/` -- toolchains, prebuilt libs, and build helpers
+  (`eclipsa_build_tests.cmake` wires GoogleTest).
+- `scripts/` -- build and packaging helpers.
+- `third_party/` -- vendored dependencies.
+
+## Building
+
+Requires Git LFS installed (`git lfs install`) before cloning assets.
+
+```
+cmake -B ./build -DCMAKE_BUILD_TYPE=Release -G Ninja
+cmake --build ./build
+```
+
+Add `-DBUILD_AAX=ON` for AAX format (requires the Avid AAX SDK). On Windows,
+pass `-DMKL_ROOT=...`, `-DVCPKG_ROOT=...`, and
+`-DVCPKG_TARGET_TRIPLET=x64-windows`. See `README.md` for full platform setup.
+
+## Testing
+
+- Framework: GoogleTest, discovered via CTest.
+- Configure with tests enabled: add `-DCI_TEST=ON -DBUILD_TESTING=ON` to the
+  CMake generate step.
+- Run: `ctest` from the `build/` directory.
+- Tests live in each plugin's `test/` folder. Add a test alongside the code
+  it covers and register it in that folder's `CMakeLists.txt`.
+
+## Coding Standards
+
+Follow the A-CX coding, naming, and security standards provided by the active
+plugins (see the `coding-standards`, `naming-code`, and `security` skills).
+Match the surrounding JUCE and Google C++ style already in the file you edit.
+Capture architecture decisions as ADRs (`architecture-decision-records` skill)
+when choosing a library, format, or pattern.
+
+## Branch Topology and Upstream
+
+This repo is a fork of a non-A-CX public upstream. Keeping A-CX tooling out of
+the upstream diff is a hard rule:
+
+- `main` mirrors `google/eclipsa-audio-plugin` cleanly. Never commit A-CX
+  tooling (`.a-cx/`, `.claude/`, `AGENTS.md`, `CLAUDE.md`) to `main`.
+- `acx/dev` branches off `main` and carries the tooling. The team works here.
+- Cut every upstream-bound PR from `main`, never from `acx/dev`.
+- A local `pre-push` git hook blocks pushes to the `upstream` remote whose
+  diff touches guarded A-CX paths. It is not a secrets scanner; normal
+  secrets hygiene still applies.
+
+Internal planning and issues live in `WithACX/eclipsa-audio-planning`, tracked
+on the org "Groove" board. Do not open A-CX planning issues on this public fork.
+The board's status flow and automations are documented internally in
+`.a-cx/docs/board-workflow.md`.
+
+## Documentation
+
+- Root `README.md` is the comprehensive entry point: purpose, platform setup,
+  build, and debug. Update it only when top-level structure or purpose changes.
+- Folder READMEs are scoped to their folder: why it exists and its conventions.
+  Every folder with 3 or more files should have a `README.md`.
+- Never duplicate content between docs; link instead.
+- README files explain the why and how of a folder (purpose, conventions,
+  usage). Do not list individual files.
+
+## After Completing Work
+
+- Added files so a folder now has 3 or more files and no README? Create one.
+- Changed a folder's structure or conventions? Update that folder's README.
+- Changed the repo's overall purpose or top-level structure? Update root README.
+- Made an architectural decision? Capture an ADR.
+- Verify tests pass (`ctest`) before opening a PR.
+- Confirm you are on `acx/dev` (or a branch off it) for tooling and internal
+  changes; cut upstream-bound PRs from `main`.
+
+## What NOT to Do
+
+- Do not commit A-CX tooling files to `main` or include them in an
+  upstream-bound PR.
+- Do not commit binary assets outside Git LFS.
+- Do not disable tests or the CMake test build to make CI green.
+- Do not open internal A-CX planning issues on this public fork.

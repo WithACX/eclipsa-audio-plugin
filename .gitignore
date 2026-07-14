@@ -1,11 +1,13 @@
 # IDE files
 /.vscode
 /.cache
-/.claude
-/.a-cx
 /_deps
-.a-cx/
-.claude/
+
+# A-CX tooling (.a-cx/, .claude/, AGENTS.md, CLAUDE.md) is intentionally
+# tracked on the acx/dev branch. Upstream ignores these dirs; this branch
+# overrides that so the team's tooling commits work with a normal `git add`.
+# main stays a clean upstream mirror and must never carry these. Only the
+# per-run delivery worktrees stay ignored (see bottom of file).
 
 # Build files
 /build
@@ -34,3 +36,6 @@ obj/
 .idea/
 CMakeSettings.json
 
+
+# A-CX delivery worktrees (per-run, never committed)
+.a-cx/worktrees/
