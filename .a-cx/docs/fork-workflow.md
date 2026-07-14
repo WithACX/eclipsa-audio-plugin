@@ -21,8 +21,15 @@ cd eclipsa-audio-plugin
 
 git remote add upstream https://github.com/google/eclipsa-audio-plugin.git  # if not present
 git lfs install                     # this repo uses Git LFS
-git checkout acx/dev                # the working branch (tooling lives here)
+git checkout acx/dev                # REQUIRED: the working branch (see below)
 ```
+
+**Important -- `main` is intentionally bare.** It mirrors the Google upstream
+and carries none of the A-CX tooling, so a fresh clone left on `main` looks like
+there is nothing A-CX here. That is expected. All day-to-day work and all
+tooling live on **`acx/dev`** -- always switch to it after cloning. If the
+repo's default branch has been set to `acx/dev`, clones land there
+automatically; otherwise run the `git checkout acx/dev` above.
 
 Then, inside the clone, run `/setup-repo` in Claude Code once. It installs the
 local `pre-push` guard (not committed, so every fresh clone needs this) and the
@@ -42,12 +49,22 @@ So: plan in the planning repo, build here. `/deliver-code` never needs the
 planning repo checked out -- the `tracker.repo` setting points it there over the
 API.
 
+**This fork holds no `.a-cx/plan/` docs.** Both the issues and the plan
+documents live in the planning repo; `/deliver-plan` writes them there and
+`/deliver-code` reads them from there via `tracker.repo`. Do not expect (or
+create) plan docs in this fork.
+
 ## Releases and versions
 
 Official releases and version tags (e.g. `v1.4.4`) live on the **Google
 upstream** as GitHub Releases. This fork only mirrors those tags via git; A-CX
-does not cut its own releases here. A new product version exists once the work
-is merged upstream and Google publishes the tag (see the installer note below).
+does not cut its own releases here.
+
+The installer repo (`WithACX/eclipsa-audio-plugin-installers`) builds the plugin
+from a git submodule pinned to **this fork's `main`** (auto-bumped by its
+`update-submodule` workflow). Because `main` mirrors the upstream, the installer
+tracks upstreamed/released code: a plugin change reaches a new installer build
+once it is in this fork's `main`.
 
 ## Branch model
 
