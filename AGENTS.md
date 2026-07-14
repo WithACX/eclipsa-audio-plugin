@@ -11,6 +11,12 @@ VST3, AU, and AAX formats for macOS and Windows DAWs.
 This is a public fork of `google/eclipsa-audio-plugin`. A-CX contributes
 changes back upstream. See "Branch Topology and Upstream" before committing.
 
+"Groove" is A-CX's internal name for this project. It began as the private
+`WithACX/groove` repo, was upstreamed to `google/eclipsa-audio-plugin`, and
+A-CX now contributes through this fork. Internal planning lives in
+`WithACX/eclipsa-audio-planning`, tracked on the org "Groove" board
+(project #1).
+
 ## Tech Stack
 
 - C++ (JUCE framework) for plugin UI and audio processing.
