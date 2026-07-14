@@ -1,0 +1,367 @@
+name: Cross-Platform Build (acx/dev)
+
+# A-CX-internal counterpart to cmake-multi-platform.yml, which only triggers
+# on main (a clean mirror of google/eclipsa-audio-plugin). All internal work
+# merges into acx/dev, so without this file no internal PR ever got a CI
+# build/test run. Kept as a separate file rather than editing
+# cmake-multi-platform.yml so main stays a byte-for-byte upstream mirror --
+# see AGENTS.md "Branch Topology and Upstream". This file exists only on
+# acx/dev and must never be cut into an upstream-bound PR from main.
+
+on:
+  pull_request:
+    branches: [ "acx/dev" ]
+  push:
+    branches: [ "acx/dev" ]
+  workflow_dispatch:
+
+env:
+  BUILD_TYPE: Release
+  TEST_TYPE: CI_TEST
+  CLEAN_BUILD: false
+  # Enable vcpkg binary caching for GitHub Actions
+  VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ macos-14, windows-2022 ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          submodules: recursive
+          lfs: true
+
+      - name: Fetch LFS objects
+        run: git lfs pull
+
+      - name: Debug LFS (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          ls third_party/obr/lib/Windows/Release/obr.lib
+          Get-Item third_party/obr/lib/Windows/Release/obr.lib | Select-Object Length
+
+
+      # --- Caching Steps (Common) ---
+      - name: Cache Protobuf Build
+        if: env.CLEAN_BUILD != 'true'
+        id: protobuf-cache
+        uses: actions/cache@v3
+        with:
+          path: build/_deps/protobuf-build
+          key: ${{ runner.os }}-protobuf-build-${{ hashFiles('third_party/protobuf/version.json') }}
+
+      - name: Check Protobuf Cache
+        if: env.CLEAN_BUILD != 'true'
+        shell: bash
+        run: |
+          echo "Protobuf cache hit: ${{ steps.protobuf-cache.outputs.cache-hit }}"
+          if [ "${{ steps.protobuf-cache.outputs.cache-hit }}" != 'true' ]; then
+            echo "Protobuf cache missed or expired, setting CLEAN_BUILD to true."
+            echo "CLEAN_BUILD=true" >> $GITHUB_ENV
+          fi
+
+      - name: Cache JUCE Build
+        if: env.CLEAN_BUILD != 'true'
+        id: juce-cache
+        uses: actions/cache@v3
+        with:
+          path: build/third_party/JUCE
+          key: ${{ runner.os }}-juce-build-${{ hashFiles('third_party/JUCE/CMakeLists.txt') }}
+
+      - name: Check JUCE Cache
+        if: env.CLEAN_BUILD != 'true'
+        shell: bash
+        run: |
+          echo "JUCE cache hit: ${{ steps.juce-cache.outputs.cache-hit }}"
+          if [ "${{ steps.juce-cache.outputs.cache-hit }}" != 'true' ]; then
+            echo "JUCE cache missed or expired, setting CLEAN_BUILD to true."
+            echo "CLEAN_BUILD=true" >> $GITHUB_ENV
+          fi
+
+      - name: Cache IAMF Build
+        if: env.CLEAN_BUILD != 'true'
+        id: iamf-cache
+        uses: actions/cache@v3
+        with:
+          path: build/_deps/libiamf-build
+          key: ${{ runner.os }}-iamf-build-${{ hashFiles('third_party/libiamf/CMakeLists.txt') }}
+
+      - name: Check IAMF Cache
+        if: env.CLEAN_BUILD != 'true'
+        shell: bash
+        run: |
+          echo "IAMF cache hit: ${{ steps.iamf-cache.outputs.cache-hit }}"
+          if [ "${{ steps.iamf-cache.outputs.cache-hit }}" != 'true' ]; then
+            echo "IAMF cache missed or expired, setting CLEAN_BUILD to true."
+            echo "CLEAN_BUILD=true" >> $GITHUB_ENV
+          fi
+
+      - name: Cache Libear Build
+        if: env.CLEAN_BUILD != 'true'
+        id: libear-cache
+        uses: actions/cache@v3
+        with:
+          path: build/third_party/libear
+          key: ${{ runner.os }}-libear-build-${{ hashFiles('third_party/libear/CMakeLists.txt') }}
+
+      - name: Check Libear Cache
+        if: env.CLEAN_BUILD != 'true'
+        shell: bash
+        run: |
+          echo "Libear cache hit: ${{ steps.libear-cache.outputs.cache-hit }}"
+          if [ "${{ steps.libear-cache.outputs.cache-hit }}" != 'true' ]; then
+            echo "Libear cache missed or expired, setting CLEAN_BUILD to true."
+            echo "CLEAN_BUILD=true" >> $GITHUB_ENV
+          fi
+
+      - name: Cache Main Build
+        if: env.CLEAN_BUILD != 'true'
+        id: main-build-cache
+        uses: actions/cache@v3
+        with:
+          path: build
+          key: ${{ runner.os }}-main-build-${{ hashFiles('CMakeLists.txt', 'cmake/**', 'components/**/*.cpp', 'components/**/*.h') }}
+
+      - name: Check Main Build Cache
+        if: env.CLEAN_BUILD != 'true'
+        shell: bash
+        run: |
+          echo "Main build cache hit: ${{ steps.main-build-cache.outputs.cache-hit }}"
+          if [ "${{ steps.main-build-cache.outputs.cache-hit }}" != 'true' ]; then
+            echo "Main build cache missed or expired, setting CLEAN_BUILD to true."
+            echo "CLEAN_BUILD=true" >> $GITHUB_ENV
+          fi
+
+      - name: Check Clean Build
+        if: env.CLEAN_BUILD == 'true'
+        shell: bash
+        run: |
+          echo "CLEAN_BUILD is true, removing entire build directory."
+          if [ -d "build" ]; then rm -rf build; fi
+
+      # --- FFmpeg (macOS) ---
+      - name: Install FFmpeg (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "Installing FFmpeg via Homebrew..."
+          brew update
+          brew install ffmpeg
+
+          echo "Verifying installation:"
+          ffmpeg -version
+          ffprobe -version
+
+          echo "FFmpeg location:"
+          which ffmpeg
+          which ffprobe
+
+      # --- FFmpeg (Windows) ---
+      - name: Install FFmpeg (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Write-Host "Installing FFmpeg via Chocolatey..."
+          choco install ffmpeg -y
+
+          Write-Host "Verifying installation:"
+          ffmpeg -version
+          ffprobe -version
+
+          Write-Host "FFmpeg location:"
+          where.exe ffmpeg
+          where.exe ffprobe
+
+      # --- Formatting (macOS only for now) ---
+      - name: Check Formatting
+        if: runner.os == 'macOS'
+        run: |
+          brew install clang-format
+          find common -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror -i
+          find rendererplugin -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror -i
+          find audioelementplugin -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror -i
+
+      # --- CMake Setup ---
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v1
+        with:
+          cmake-version: "3.30.x"
+
+      - name: Verify CMake
+        shell: bash
+        run: |
+          cmake --version
+          which cmake
+
+      # --- Install Dependencies (Windows) ---
+      - name: Cache Intel OneAPI
+        id: cache-oneapi
+        if: runner.os == 'Windows'
+        uses: actions/cache@v3
+        with:
+          path: oneapi
+          key: ${{ runner.os }}-oneapi-mkl-2025.3.0
+
+      - name: Install Intel OneAPI MKL (Windows)
+        if: runner.os == 'Windows' && steps.cache-oneapi.outputs.cache-hit != 'true'
+        shell: powershell
+        run: |
+          # Download Intel OneAPI Base Toolkit (Offline Installer)
+          # We use the offline installer because the online installer URL is not stable/predictable.
+          # This is a large download (~2.5GB), but we cache the result so this only happens once.
+          $installerUrl = "https://registrationcenter-download.intel.com/akdlm/IRC_NAS/1f18901e-877d-469d-a41a-a10f11b39336/intel-oneapi-base-toolkit-2025.3.0.372_offline.exe"
+          $installerPath = "$env:TEMP\intel-oneapi-base-toolkit-offline.exe"
+
+          Write-Host "Downloading Intel OneAPI Base Toolkit from $installerUrl..."
+
+          # Use curl.exe for faster download (Invoke-WebRequest can be slow due to progress bar)
+          # -L: Follow redirects
+          # -o: Output file
+          # --retry: Retry on transient errors
+          & curl.exe -L -o "$installerPath" "$installerUrl" --retry 5 --retry-delay 5
+
+          if (-not (Test-Path $installerPath)) {
+              Write-Error "Download failed: File not found at $installerPath"
+              exit 1
+          }
+
+          Write-Host "Installing Intel OneAPI Base Toolkit (MKL only)..."
+
+          # Install to a local directory within the workspace so it can be cached
+          $installDir = "$env:GITHUB_WORKSPACE\oneapi"
+
+          # Run installer silently with custom install directory
+          $proc = Start-Process -FilePath $installerPath -ArgumentList "-s -a --silent --eula accept --components intel.oneapi.win.mkl.devel -p=NEED_VS2022_INTEGRATION=0 --install-dir `"$installDir`"" -Wait -NoNewWindow -PassThru
+
+          if ($proc.ExitCode -ne 0) {
+              Write-Error "Installation failed with exit code $($proc.ExitCode)"
+              exit 1
+          }
+
+          Write-Host "Installation complete."
+
+      - name: Set MKLROOT Environment Variable
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          $mklRoot = "$env:GITHUB_WORKSPACE\oneapi\mkl\latest"
+          if (Test-Path $mklRoot) {
+            Write-Host "MKL found at: $mklRoot"
+            echo "MKLROOT=$mklRoot" | Out-File -FilePath $env:GITHUB_ENV -Append
+          } else {
+            Write-Error "MKL installation failed or not found at expected path: $mklRoot"
+            exit 1
+          }
+
+      - name: Verify MKL install (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Write-Host "MKLROOT is: $env:MKLROOT"
+
+          $libPath = "$env:MKLROOT\lib"
+          $lib64Path = "$env:MKLROOT\lib\intel64"
+
+          if (Test-Path $lib64Path) {
+             Write-Host "Found lib/intel64"
+             Get-ChildItem $lib64Path | Select-Object Name | Select-Object -First 5
+          } elseif (Test-Path $libPath) {
+             Write-Host "Found lib (root)"
+             Get-ChildItem $libPath | Select-Object Name | Select-Object -First 5
+          } else {
+             Write-Warning "Could not find lib or lib/intel64 under MKLROOT"
+             Get-ChildItem "$env:MKLROOT" -Recurse -Depth 2
+          }
+        # --- vcpkg Setup (Windows) ---
+      - name: Export GitHub Actions cache environment variables
+        if: runner.os == 'Windows'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.exportVariable('ACTIONS_CACHE_URL', process.env.ACTIONS_CACHE_URL || '');
+            core.exportVariable('ACTIONS_RUNTIME_TOKEN', process.env.ACTIONS_RUNTIME_TOKEN || '');
+
+      - name: Setup vcpkg
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          echo "VCPKG_ROOT=C:\vcpkg" | Out-File -FilePath $env:GITHUB_ENV -Append
+          cd C:\vcpkg
+          git pull
+          .\bootstrap-vcpkg.bat
+
+      # --- Install vcpkg dependencies (Windows) ---
+      - name: Install vcpkg dependencies
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          vcpkg install --triplet x64-windows
+
+      # --- Configure (Windows) ---
+      - name: Configure CMake (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} `
+            -D${{ env.TEST_TYPE }}=ON `
+            -DBUILD_TESTING=ON `
+            -DZMQ_BUILD_TESTS=OFF `
+            -DMKL_ROOT="$env:MKLROOT" `
+            -DVCPKG_ROOT="$env:VCPKG_ROOT" `
+            -DVCPKG_TARGET_TRIPLET=x64-windows `
+            -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT/scripts/buildsystems/vcpkg.cmake" `
+            -DVCPKG_CHAINLOAD_TOOLCHAIN_FILE="${{ github.workspace }}/cmake/toolchains/windows.cmake"
+
+      # --- Configure (macOS) ---
+      - name: Configure CMake (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cmake -S . -B build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -G "Unix Makefiles" \
+            -D${{ env.TEST_TYPE }}=ON \
+            -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_C_COMPILER=clang \
+            -DBUILD_TESTING=ON \
+            -DZMQ_BUILD_TESTS=OFF \
+            -DCMAKE_TOOLCHAIN_FILE="cmake/toolchains/macos.cmake"
+
+      # --- Build ---
+      - name: Build
+        shell: bash
+        run: |
+          if [ "${{ runner.os }}" == "macOS" ]; then
+            # Limit parallelism on macOS to avoid "Resource temporarily unavailable" errors
+            cmake --build build --config ${{ env.BUILD_TYPE }} -j 4
+          else
+            cmake --build build --config ${{ env.BUILD_TYPE }} --parallel
+          fi
+
+      # --- Test ---
+      - name: Test
+        working-directory: ${{ github.workspace }}/build
+        shell: bash
+        run: ctest -C ${{ env.BUILD_TYPE }} --output-on-failure
+
+      # --- Logs ---
+      - name: Dump Test Logs
+        if: ${{ failure() }}
+        shell: bash
+        run: |
+          echo "//// CTest Logs ////"
+          if [ -f "Testing/Temporary/LastTest.log" ]; then cat Testing/Temporary/LastTest.log; fi
+          echo "//// Eclipsa Logs ////"
+          # Try to find logs in common locations
+          if [ -f "/tmp/Eclipsa_Audio_Plugin/log.txt" ]; then
+             cat /tmp/Eclipsa_Audio_Plugin/log.txt
+          elif [ -f "$TEMP/Eclipsa_Audio_Plugin/log.txt" ]; then
+             cat "$TEMP/Eclipsa_Audio_Plugin/log.txt"
+          else
+             echo "Log file not found."
+          fi
