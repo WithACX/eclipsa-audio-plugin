@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+"""
+Git pre-push hook: block A-CX tooling files from reaching a public upstream.
+
+Only relevant on a repo forked from a non-A-CX public upstream. Blocks a
+push to the upstream remote (ACX_UPSTREAM_REMOTE, default "upstream") when
+the diff being pushed touches a guarded A-CX path -- so a PR cut from `main`
+never carries internal dev-environment files into the upstream diff.
+
+Never touches a push to any other remote (e.g. `origin`, your own fork).
+An upstream PR cut from `main` (see rules/common/git-workflow.md,
+"Contributing to a Public Upstream Fork") never contains these paths, so it
+is never blocked; only a push that actually carries a guarded path is.
+
+Fails CLOSED: if the diff being pushed cannot be computed (e.g. the remote
+tip is not fetched locally), the push is blocked with a message to fetch
+and retry, rather than silently allowed.
+
+This is this repo's own TRACKED copy of the org-wide pre-push guard shipped
+by the skill-lifecycle plugin (skills/skill-lifecycle/assets/pre-push).
+`.a-cx/bin/acx-upstream-pr.sh` looks for a guard here FIRST, before the
+untracked `.git/hooks/pre-push`, so this version -- and any repo-specific
+additions to GUARDED_WORKFLOW_NAMES below -- travels with the repo and
+applies for every clone and every contributor, not just the machine that
+ran /setup-repo. Keep it in sync with the upstream plugin asset; the only
+intentional repo-specific addition here is "acx-dev-ci.yml" (see below).
+
+Guarded paths and workflow names are the acceptance criteria of issue
+FORK.2 (#242), themselves derived from what A-CX tooling commands actually
+write into a dev repo (see
+.a-cx/learnings/guarded-path-list-must-match-tooling-output.md) -- keep
+GUARDED_PATH_PREFIXES / GUARDED_WORKFLOW_NAMES in sync with #242, not
+hand-guessed. Named `.github/workflows/` files are guarded individually,
+never a blanket `.github/workflows/` entry, since that would block
+legitimate upstream workflow PRs.
+
+This guard is a path-prefix noise filter, not a secrets scanner or content
+inspector -- it does not read file contents. Normal secrets hygiene still
+fully applies. It is also a client-side speed bump only: `git push
+--no-verify`, a push from CI, or a merge via the GitHub UI all bypass it: a
+server-side check on the upstream side is the real enforcement boundary.
+
+Install: /setup-repo installs this automatically on external-fork repos
+(see commands/setup-repo.md, "Fork guard detection and install"). Manual
+install, e.g. on a repo /setup-repo has not yet run against:
+    ln -sf ../../.a-cx/hooks/pre-push .git/hooks/pre-push
+"""
+
+import os
+import re
+import subprocess
+import sys
+
+ZERO_SHA = "0" * 40
+SHA_RE = re.compile(r"^[0-9a-f]{40}([0-9a-f]{24})?$")  # sha1, or sha256 (64 hex)
+
+UPSTREAM_REMOTE = os.environ.get("ACX_UPSTREAM_REMOTE", "upstream")
+
+# Directory prefixes (must end in "/") that A-CX tooling writes into a dev repo.
+GUARDED_PATH_DIRS = [
+    ".a-cx/",  # process.yaml, github.yaml, plan/, learnings/, worktrees/, hooks/
+    "docs/plan/",  # legacy plan location, guarded until the PLAN.2/PLAN.3 migration lands
+    ".claude/",  # settings.json, rules/
+    ".agents/",
+    ".github/instructions/",
+    ".github/ISSUE_TEMPLATE/",
+    ".junie/",
+]
+
+# Exact filenames (or basenames) that A-CX tooling writes into a dev repo.
+GUARDED_PATH_FILES = [
+    "AGENTS.md",
+    "CLAUDE.md",
+    "GEMINI.md",
+    ".github/copilot-instructions.md",
+    "pull_request_template.md",
+]
+
+# Named A-CX-authored workflow files under .github/workflows/, guarded
+# individually -- never blanket-guard the whole directory.
+GUARDED_WORKFLOW_NAMES = [
+    "claude.yml",
+    "deploy-copilot-settings.yml",
+    "org-defaults-drift.yml",
+    "status-sync.yml",
+    "template-check.yml",
+    # Repo-specific addition (this fork only): the acx/dev-only CI workflow
+    # added to fix internal PRs never running a build/test check. It exists
+    # only on acx/dev and is never intended to reach upstream, but this is
+    # the backstop for if a future upstream-pr --source range ever includes
+    # its commit by mistake.
+    "acx-dev-ci.yml",
+]
+
+
+def is_guarded(path):
+    for d in GUARDED_PATH_DIRS:
+        if path.startswith(d):
+            return True
+    basename = path.rsplit("/", 1)[-1]
+    for f in GUARDED_PATH_FILES:
+        if path == f or basename == f:
+            return True
+    for name in GUARDED_WORKFLOW_NAMES:
+        if path == ".github/workflows/" + name:
+            return True
+    return False
+
+
+def changed_paths(local_sha, remote_sha):
+    """Return the union of paths touched anywhere in the pushed range.
+
+    Walking every commit (not just the two endpoints) catches a guarded
+    path that was added and removed again within the pushed range -- an
+    endpoint-only diff would miss it, even though the content is still
+    reachable in the pushed history.
+    """
+    if remote_sha == ZERO_SHA:
+        cmd = ["git", "log", "--name-only", "--pretty=format:", local_sha]
+    else:
+        cmd = ["git", "log", "--name-only", "--pretty=format:",
+               f"{remote_sha}..{local_sha}"]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        print(
+            f"BLOCKED: could not compute the diff being pushed "
+            f"({' '.join(cmd)}): {result.stderr.strip()}",
+            file=sys.stderr,
+        )
+        print(
+            f"Fetch '{UPSTREAM_REMOTE}' and retry, or investigate before "
+            "pushing -- failing closed rather than allowing an unverified push.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return {line.strip() for line in result.stdout.splitlines() if line.strip()}
+
+
+def main():
+    if len(sys.argv) < 2:
+        return 0
+    remote_name = sys.argv[1]
+
+    if remote_name != UPSTREAM_REMOTE:
+        return 0
+
+    matched = set()
+    for line in sys.stdin:
+        parts = line.split()
+        if len(parts) != 4:
+            continue
+        _local_ref, local_sha, _remote_ref, remote_sha = parts
+        if local_sha == ZERO_SHA:
+            continue  # branch deletion -- nothing pushed
+        if not SHA_RE.match(local_sha) or not (
+            remote_sha == ZERO_SHA or SHA_RE.match(remote_sha)
+        ):
+            print(f"BLOCKED: malformed ref update from git: {line.strip()!r}",
+                  file=sys.stderr)
+            return 1
+        matched |= {p for p in changed_paths(local_sha, remote_sha) if is_guarded(p)}
+
+    if matched:
+        print(
+            f"BLOCKED: push to '{remote_name}' touches A-CX-internal path(s):",
+            file=sys.stderr,
+        )
+        for path in sorted(matched):
+            print(f"  {path}", file=sys.stderr)
+        print(
+            "Cut upstream PRs from `main` (see rules/common/git-workflow.md, "
+            "\"Contributing to a Public Upstream Fork\"). Push to a fork "
+            "remote instead if this is your own fork.",
+            file=sys.stderr,
+        )
+        return 1
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
