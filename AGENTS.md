@@ -87,6 +87,8 @@ the upstream diff is a hard rule:
 
 Internal planning and issues live in `WithACX/eclipsa-audio-planning`, tracked
 on the org "Groove" board. Do not open A-CX planning issues on this public fork.
+The board's status flow and automations are documented internally in
+`.a-cx/docs/board-workflow.md`.
 
 ## Documentation
 
