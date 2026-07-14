@@ -114,11 +114,16 @@ def changed_paths(local_sha, remote_sha):
     path that was added and removed again within the pushed range -- an
     endpoint-only diff would miss it, even though the content is still
     reachable in the pushed history.
+
+    `-m` makes `git log` generate a diff for merge commits too (against
+    each parent) -- without it, a guarded path introduced only by a merge
+    commit's own tree (e.g. conflict resolution) is invisible to
+    `--name-only`, since `git log` skips diffing merges by default.
     """
     if remote_sha == ZERO_SHA:
-        cmd = ["git", "log", "--name-only", "--pretty=format:", local_sha]
+        cmd = ["git", "log", "-m", "--name-only", "--pretty=format:", local_sha]
     else:
-        cmd = ["git", "log", "--name-only", "--pretty=format:",
+        cmd = ["git", "log", "-m", "--name-only", "--pretty=format:",
                f"{remote_sha}..{local_sha}"]
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
