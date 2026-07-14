@@ -49,6 +49,11 @@ So: plan in the planning repo, build here. `/deliver-code` never needs the
 planning repo checked out -- the `tracker.repo` setting points it there over the
 API.
 
+**This fork holds no `.a-cx/plan/` docs.** Both the issues and the plan
+documents live in the planning repo; `/deliver-plan` writes them there and
+`/deliver-code` reads them from there via `tracker.repo`. Do not expect (or
+create) plan docs in this fork.
+
 ## Releases and versions
 
 Official releases and version tags (e.g. `v1.4.4`) live on the **Google
