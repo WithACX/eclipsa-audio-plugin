@@ -84,6 +84,9 @@ the upstream diff is a hard rule:
 - A local `pre-push` git hook blocks pushes to the `upstream` remote whose
   diff touches guarded A-CX paths. It is not a secrets scanner; normal
   secrets hygiene still applies.
+- Contribute upstream with `/upstream-pr` (runs `.a-cx/bin/acx-upstream-pr.sh`);
+  it cuts a clean branch from `main`. Full developer guide with git commands:
+  `.a-cx/docs/fork-workflow.md`.
 
 Internal planning and issues live in `WithACX/eclipsa-audio-planning`, tracked
 on the org "Groove" board. Do not open A-CX planning issues on this public fork.
