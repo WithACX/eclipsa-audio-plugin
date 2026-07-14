@@ -1,0 +1,26 @@
+# .a-cx/process.yaml -- A-CX process config for this repo
+# Read by /orchestrate and /deliver-code. Absent fields = defaults.
+
+flags:
+  tdd: false               # false: skip tdd-guide in all workflows
+  security_review: true    # false: skip security-reviewer (rarely justified)
+
+deliver:
+  # mode: standard         # force micro | standard | project (default: auto-detect)
+  pr_review: human         # auto | human | both
+  admin_bypass: false      # true: standing authorization to merge with
+                           # gh pr merge --admin when a branch ruleset
+                           # blocks the merge (admin rights required)
+  isolation: worktree      # worktree (default): each run gets its own git
+                           # worktree + branch so parallel deliveries never
+                           # collide; none: legacy single-tree behavior
+  # worktree_root: .a-cx/worktrees/  # where per-run worktrees live (default
+                           # shown); must be gitignored and excluded from
+                           # tool/skill directory scans -- see gitignore note below
+
+# limits:                  # defaults shown; uncomment to tighten
+#   max_tasks_per_run: 15
+#   max_iterations_per_task: 8
+#   max_consecutive_errors: 3
+#   context_warn_pct: 70
+#   context_abort_pct: 88
