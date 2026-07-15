@@ -116,7 +116,12 @@ The board's status flow and automations are documented internally in
 - Changed a folder's structure or conventions? Update that folder's README.
 - Changed the repo's overall purpose or top-level structure? Update root README.
 - Made an architectural decision? Capture an ADR.
-- Verify tests pass (`ctest`) before opening a PR.
+- Do a local build and verify tests pass (`ctest`) before opening a PR --
+  always, not only when asked, and not skipped on the assumption that CI will
+  catch it. The `build/_deps` third-party tree is large (multiple GB); reuse
+  the existing configured `build/` directory for an incremental build of the
+  affected target rather than reconfiguring from scratch in a new worktree or
+  checkout.
 - Confirm you are on `acx/dev` (or a branch off it) for tooling and internal
   changes; cut upstream-bound PRs from `main`.
 
