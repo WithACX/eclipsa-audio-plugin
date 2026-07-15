@@ -273,12 +273,12 @@ void AudioFilePlayer::updateComponentVisibility() {
     // invalid-file message.
     const bool kNoFileChosen = fpbr_.get().getPlaybackFile().isEmpty();
     fileSelectLabel_.setText(kNoFileChosen
-                                  ? "No file selected"
-                                  : "Invalid IAMF file selected for playback",
-                              juce::dontSendNotification);
-    fileSelectLabel_.setColour(juce::Label::textColourId,
-                                kNoFileChosen ? EclipsaColours::headingGrey
-                                              : EclipsaColours::red);
+                                 ? "No file selected"
+                                 : "Invalid IAMF file selected for playback",
+                             juce::dontSendNotification);
+    fileSelectLabel_.setColour(
+        juce::Label::textColourId,
+        kNoFileChosen ? EclipsaColours::headingGrey : EclipsaColours::red);
   }
   playButton_.setVisible(!kPlaying && !kBuffering && !kError);
   pauseButton_.setVisible(kPlaying && !kError);
