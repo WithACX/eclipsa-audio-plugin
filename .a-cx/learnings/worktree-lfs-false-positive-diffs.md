@@ -5,6 +5,8 @@ confidence: 0.7
 domain: git
 scope: project
 date: 2026-07-15
+status: issue-raised
+issue: "GH-458"
 ---
 # git worktree checkouts can show LFS-tracked binaries as falsely modified
 
