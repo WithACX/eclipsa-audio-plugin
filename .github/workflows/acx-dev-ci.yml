@@ -7,12 +7,12 @@ name: Cross-Platform Build (acx/dev)
 # cmake-multi-platform.yml so main stays a byte-for-byte upstream mirror --
 # see AGENTS.md "Branch Topology and Upstream". This file exists only on
 # acx/dev and must never be cut into an upstream-bound PR from main.
+#
+# Trigger temporarily restricted to on-demand only (workflow_dispatch) --
+# automatic push/PR runs are disabled for now. Re-add the pull_request/push
+# triggers below once ready to resume automatic runs.
 
 on:
-  pull_request:
-    branches: [ "acx/dev" ]
-  push:
-    branches: [ "acx/dev" ]
   workflow_dispatch:
 
 env:
