@@ -1,10 +1,10 @@
 ---
 id: worktree-lfs-false-positive-diffs
 trigger: "when running `git worktree add` in this repo and then `git status`/`git diff` before staging changes"
-confidence: 0.5
+confidence: 0.7
 domain: git
 scope: project
-date: 2026-07-14
+date: 2026-07-15
 ---
 # git worktree checkouts can show LFS-tracked binaries as falsely modified
 
@@ -25,3 +25,17 @@ including it in a commit.
   `.a-cx/worktrees/44-wav-checkbox-default-unchecked`): 6 third_party
   binaries appeared modified after `git worktree add`; `git lfs status`
   showed matching hashes for all of them.
+- Reproduced during the #42 delivery run (worktree
+  `.a-cx/worktrees/42-general-ui-cleanup`): 16 third_party binaries flagged
+  modified after `git worktree add`; `git lfs status` again confirmed
+  matching Git/File hashes for all of them. Confidence raised 0.5 -> 0.7
+  (recurring, not a one-off).
+- Unconfirmed hypothesis worth flagging: two earlier PRs for issue #42
+  (#6, #7) were both closed without merge and with no recorded review
+  comment. One plausible explanation is that an earlier run staged with
+  `git add -A` and swept these false-positive binary diffs into the PR,
+  which a reviewer understandably closed on sight without commenting. Not
+  verified (no review data survives to confirm), but consistent with this
+  learning's own guidance -- reinforces treating "never `git add -A` after
+  `git worktree add` in this repo" as a hard rule for this project rather
+  than just advisory.
