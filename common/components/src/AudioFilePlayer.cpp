@@ -266,6 +266,20 @@ void AudioFilePlayer::updateComponentVisibility() {
       (playState == FilePlayback::ProcessorState::kBuffering);
   const bool kError = (playState == FilePlayback::ProcessorState::kError);
   fileSelectLabel_.setVisible(kError);
+  if (kError) {
+    // kError is also ProcessorState's zero-initialized default, so this
+    // fires before any file has been chosen, not just on a genuine load
+    // failure. Distinguish the two instead of always showing the red
+    // invalid-file message.
+    const bool kNoFileChosen = fpbr_.get().getPlaybackFile().isEmpty();
+    fileSelectLabel_.setText(kNoFileChosen
+                                  ? "No file selected"
+                                  : "Invalid IAMF file selected for playback",
+                              juce::dontSendNotification);
+    fileSelectLabel_.setColour(juce::Label::textColourId,
+                                kNoFileChosen ? EclipsaColours::headingGrey
+                                              : EclipsaColours::red);
+  }
   playButton_.setVisible(!kPlaying && !kBuffering && !kError);
   pauseButton_.setVisible(kPlaying && !kError);
   stopButton_.setVisible(!kBuffering && !kError);
