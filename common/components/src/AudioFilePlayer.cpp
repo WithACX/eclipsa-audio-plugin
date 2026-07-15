@@ -266,6 +266,18 @@ void AudioFilePlayer::updateComponentVisibility() {
       (playState == FilePlayback::ProcessorState::kBuffering);
   const bool kError = (playState == FilePlayback::ProcessorState::kError);
   fileSelectLabel_.setVisible(kError);
+  if (kError) {
+    if (fpbr_.get().getPlaybackFile().isEmpty()) {
+      fileSelectLabel_.setText("No file selected", juce::dontSendNotification);
+      fileSelectLabel_.setColour(juce::Label::textColourId,
+                                 EclipsaColours::headingGrey);
+    } else {
+      fileSelectLabel_.setText("Invalid IAMF file selected for playback",
+                               juce::dontSendNotification);
+      fileSelectLabel_.setColour(juce::Label::textColourId,
+                                 EclipsaColours::red);
+    }
+  }
   playButton_.setVisible(!kPlaying && !kBuffering && !kError);
   pauseButton_.setVisible(kPlaying && !kError);
   stopButton_.setVisible(!kBuffering && !kError);
