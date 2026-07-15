@@ -87,6 +87,13 @@ the upstream diff is a hard rule:
 - Contribute upstream with `/upstream-pr` (runs `.a-cx/bin/acx-upstream-pr.sh`);
   it cuts a clean branch from `main`. Full developer guide with git commands:
   `.a-cx/docs/fork-workflow.md`.
+- Use a dedicated `git worktree` for any commit or delivery work rather than
+  editing directly in the primary checkout -- even a small, no-PR fix. The
+  primary tree may be actively checked out by another session or agent; a
+  branch switch there mid-task can collide with your work. Create one with
+  `git worktree add .a-cx/worktrees/<slug> -b <branch>`, do all edits and
+  commits inside it, then `git worktree remove` (and `git worktree prune`)
+  once the work is pushed or merged.
 
 Internal planning and issues live in `WithACX/eclipsa-audio-planning`, tracked
 on the org "Groove" board. Do not open A-CX planning issues on this public fork.
