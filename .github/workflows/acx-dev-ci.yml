@@ -8,11 +8,20 @@ name: Cross-Platform Build (acx/dev)
 # see AGENTS.md "Branch Topology and Upstream". This file exists only on
 # acx/dev and must never be cut into an upstream-bound PR from main.
 #
-# Trigger temporarily restricted to on-demand only (workflow_dispatch) --
-# automatic push/PR runs are disabled for now. Re-add the pull_request/push
-# triggers below once ready to resume automatic runs.
+# The full cross-platform `build` matrix (macOS + Windows, full CMake build +
+# ctest) stays on-demand only (workflow_dispatch) -- it is too expensive to
+# run on every PR/push. The `clang-format` job below is fast (checkout only,
+# no submodules/LFS, no build) and runs automatically on every PR/push to
+# acx/dev, so a formatting violation is caught here instead of surfacing
+# later as an upstream CI failure on a PR cut from main (`.clang-format` is
+# enforced with `-Werror` by both this file and upstream's
+# cmake-multi-platform.yml).
 
 on:
+  pull_request:
+    branches: [ "acx/dev" ]
+  push:
+    branches: [ "acx/dev" ]
   workflow_dispatch:
 
 env:
@@ -23,7 +32,22 @@ env:
   VCPKG_BINARY_SOURCES: "clear;x-gha,readwrite"
 
 jobs:
+  clang-format:
+    name: Clang Format
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Check Formatting
+        run: |
+          brew install clang-format
+          find common -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror -i
+          find rendererplugin -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror -i
+          find audioelementplugin -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror -i
+
   build:
+    if: github.event_name == 'workflow_dispatch'
     name: ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
@@ -180,14 +204,8 @@ jobs:
           where.exe ffmpeg
           where.exe ffprobe
 
-      # --- Formatting (macOS only for now) ---
-      - name: Check Formatting
-        if: runner.os == 'macOS'
-        run: |
-          brew install clang-format
-          find common -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror -i
-          find rendererplugin -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror -i
-          find audioelementplugin -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror -i
+      # Formatting is checked by the dedicated `clang-format` job above, which
+      # also runs on this workflow_dispatch trigger -- no need to repeat it here.
 
       # --- CMake Setup ---
       - name: Setup CMake

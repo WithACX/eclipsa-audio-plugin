@@ -72,6 +72,17 @@ Match the surrounding JUCE and Google C++ style already in the file you edit.
 Capture architecture decisions as ADRs (`architecture-decision-records` skill)
 when choosing a library, format, or pattern.
 
+Run `clang-format` on every changed `.h`/`.cpp` file before committing:
+
+```
+clang-format --style=file:.clang-format -i <changed files>
+```
+
+Both `upstream`'s CI (`cmake-multi-platform.yml`) and this fork's CI
+(`acx-dev-ci.yml`) enforce `.clang-format` with `-Werror` on `common/`,
+`rendererplugin/`, and `audioelementplugin/`. An unformatted file fails the
+check and blocks the PR -- it does not autofix in CI.
+
 ## Branch Topology and Upstream
 
 This repo is a fork of a non-A-CX public upstream. Keeping A-CX tooling out of
@@ -122,6 +133,9 @@ The board's status flow and automations are documented internally in
   the existing configured `build/` directory for an incremental build of the
   affected target rather than reconfiguring from scratch in a new worktree or
   checkout.
+- Run `clang-format` on every changed `.h`/`.cpp` file before opening a
+  PR -- CI enforces it with `-Werror` and a violation blocks the PR (this bit
+  an upstream-bound PR that only ran `ctest` locally and skipped formatting).
 - Confirm you are on `acx/dev` (or a branch off it) for tooling and internal
   changes; cut upstream-bound PRs from `main`.
 
