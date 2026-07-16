@@ -1,7 +1,7 @@
 ---
 id: worktree-lfs-false-positive-diffs
 trigger: "when running `git worktree add` in this repo and then `git status`/`git diff` before staging changes"
-confidence: 0.7
+confidence: 0.8
 domain: git
 scope: project
 date: 2026-07-15
@@ -41,3 +41,9 @@ including it in a commit.
   learning's own guidance -- reinforces treating "never `git add -A` after
   `git worktree add` in this repo" as a hard rule for this project rather
   than just advisory.
+- Reproduced a third time during the #41 delivery run (worktree
+  `.a-cx/worktrees/41-export-fails-silently`): 16 third_party binaries
+  flagged modified immediately after `git worktree add`; `git lfs status`
+  again confirmed matching Git/File hashes for all of them. Confidence
+  raised 0.7 -> 0.8. Staged only the 4 intended source files throughout the
+  run; no false-positive binary reached any commit.
