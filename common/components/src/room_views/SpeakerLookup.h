@@ -160,12 +160,12 @@ const RoomViewSpeaker kRU045{
 
 const RoomViewSpeaker kLeftTopBack{
     Coordinates::Point4D{{-0.707f, 0.5f, .707f, 1.0f}},
-    "Ltb",
+    "Ltr",
     kLTB,
 };
 const RoomViewSpeaker kRightTopBack{
     Coordinates::Point4D{{0.707f, 0.5f, .707f, 1.0f}},
-    "Rtb",
+    "Rtr",
     kRTB,
 };
 const RoomViewSpeaker kLowFreqEffects{

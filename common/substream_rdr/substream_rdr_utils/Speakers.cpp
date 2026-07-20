@@ -449,9 +449,9 @@ juce::String AudioElementSpeakerLayout::toString() const {
     case kExpl7Point1Point4TopFront:
       return "7.1.4 Top Front (Ltf/Rtf)";
     case kExpl7Point1Point4TopBack:
-      return "7.1.4 Top Back (Ltb/Rtb)";
+      return "7.1.4 Top Rear (Ltr/Rtr)";
     case kExpl7Point1Point4Top:
-      return "7.1.4 Top (Ltf/Rtf/Ltb/Rtb)";
+      return "7.1.4 Top (Ltf/Rtf/Ltr/Rtr)";
     case kExpl7Point1Point4Front:
       return "7.1.4 Front (L/C/R)";
     case kExpl9Point1Point6:
@@ -488,7 +488,7 @@ std::vector<juce::String> AudioElementSpeakerLayout::getSpeakerLabels() const {
       return {"L", "R", "C", "LFE", "Lss", "Rss", "Lrs", "Rrs", "Ltf", "Rtf"};
     case k7Point1Point4:
       return {"L",   "R",   "C",   "LFE", "Lss", "Rss",
-              "Lrs", "Rrs", "Ltf", "Rtf", "Ltb", "Rtb"};
+              "Lrs", "Rrs", "Ltf", "Rtf", "Ltr", "Rtr"};
     case kBinaural:
       return {"L", "R"};
     case kExplLFE:
@@ -502,9 +502,9 @@ std::vector<juce::String> AudioElementSpeakerLayout::getSpeakerLabels() const {
     case kExpl7Point1Point4TopFront:
       return {"Ltf", "Rtf"};
     case kExpl7Point1Point4TopBack:
-      return {"Ltb", "Rtb"};
+      return {"Ltr", "Rtr"};
     case kExpl7Point1Point4Top:
-      return {"Ltf", "Rtf", "Ltb", "Rtb"};
+      return {"Ltf", "Rtf", "Ltr", "Rtr"};
     case kExpl7Point1Point4Front:
       return {"L", "R", "C"};
     case kExpl9Point1Point6:
