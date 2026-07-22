@@ -75,6 +75,14 @@ class WavFileOutputProcessor : public ProcessorBase,
     juce::MessageManager::callAsync(std::move(task));
   }
 
+  virtual FileWriter* createFileWriter(const juce::String& filename,
+                                       double sampleRate, int numChannels,
+                                       int firstChannel, int bitDepth,
+                                       AudioCodec codec) {
+    return new FileWriter(filename, sampleRate, numChannels, firstChannel,
+                          bitDepth, codec);
+  }
+
  private:
   // Records a kFileWriteFailed ExportError (unless a more specific error is
   // already on record) when a FileWriter::write() call fails.
@@ -116,13 +124,9 @@ class WavFileOutputProcessor : public ProcessorBase,
   long startSampleIdx_;
   long endSampleIdx_;
   juce::SpinLock lock_;
-  // Flipped to false at the start of the destructor so a
-  // deferRepositoryUpdate() callback that fires after this processor is
-  // destroyed can detect that and bail out instead of touching freed memory.
-  // Shared (not owned outright) so the async callback can safely hold its own
-  // reference.
+  std::atomic<bool> hasRecordedWriteFailure_ = false;
   std::shared_ptr<std::atomic<bool>> isAlive_ =
-      std::make_shared<std::atomic<bool>>(true);
+      std::make_shared<std::atomic<bool>>(true); // Safety valve for deferred updates
   //==============================================================================
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WavFileOutputProcessor)
 };

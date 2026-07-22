@@ -36,6 +36,11 @@ WavFileOutputProcessor::WavFileOutputProcessor(
 }
 
 WavFileOutputProcessor::~WavFileOutputProcessor() {
+  // Ensure this is either deleted by a unit test (nullptr check) or 
+  // by the message thread since deletion by the audio thread is not safe (lock_ is non-reentrant)
+  jassert(juce::MessageManager::getInstanceWithoutCreating() == nullptr ||
+          juce::MessageManager::getInstanceWithoutCreating()
+              ->isThisTheMessageThread());
   *isAlive_ = false;
   fileExportRepository_.deregisterListener(this);
 }
@@ -97,11 +102,17 @@ void WavFileOutputProcessor::recordWriteFailureIfAny(bool writeSucceeded) {
   if (writeSucceeded) {
     return;
   }
-  // A frame write failed mid-export (e.g. disk full, WAV size limit
-  // exceeded). Record it unless a more specific error is already on record,
-  // mirroring the guard used by FileOutputProcessor for the IAMF/per-element
-  // paths. Deferred via deferRepositoryUpdate() -- see its declaration for
-  // why this can't call fileExportRepository_.update() synchronously.
+  // A persistent failure (disk full, WAV size limit exceeded) fails every
+  // subsequent block. Only the first failure of an export needs to be recorded.'
+  // exchange() both checks and claims that slot atomically; 
+  // hasRecordedWriteFailure_ is reset in setNonRealtime() at the start of the next export.
+  if (hasRecordedWriteFailure_.exchange(true)) {
+    return;
+  }
+  // Record it unless a more specific error is already on record, mirroring
+  // the guard used by FileOutputProcessor for the IAMF/per-element paths.
+  // Deferred via deferRepositoryUpdate() -- see its declaration for why this
+  // can't call fileExportRepository_.update() synchronously.
   deferRepositoryUpdate([](FileExport& config) {
     if (config.getExportError() == kNoError) {
       config.setExportError(kFileWriteFailed);
@@ -125,8 +136,9 @@ void WavFileOutputProcessor::setNonRealtime(bool isNonRealtime) noexcept {
       // call fileExportRepository_.update() synchronously.
       deferRepositoryUpdate(
           [](FileExport& config) { config.setExportError(kNoError); });
+      hasRecordedWriteFailure_ = false;
 
-      fileWriter_ = new FileWriter(
+      fileWriter_ = createFileWriter(
           configParams.getExportFile(), configParams.getSampleRate(),
           roomSetup.getSpeakerLayout().getRoomSpeakerLayout().getNumChannels(),
           0, configParams.getBitDepth(), configParams.getAudioCodec());
