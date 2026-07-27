@@ -146,3 +146,10 @@ The board's status flow and automations are documented internally in
 - Do not commit binary assets outside Git LFS.
 - Do not disable tests or the CMake test build to make CI green.
 - Do not open internal A-CX planning issues on this public fork.
+- Do not add issue/ticket numbers to code comments (e.g. "Issue #38: ...").
+  Comments should explain the code on its own terms; issue references rot
+  as trackers change and belong in the commit message or PR description
+  instead.
+- Do not use multi-line block comments above a class-level member variable
+  declaration. Keep it to a simple inline comment on the same line (e.g.
+  `long framesWritten_;  // samples handed to the writers this export`).
