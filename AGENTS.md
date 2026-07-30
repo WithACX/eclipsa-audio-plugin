@@ -83,6 +83,18 @@ Both `upstream`'s CI (`cmake-multi-platform.yml`) and this fork's CI
 `rendererplugin/`, and `audioelementplugin/`. An unformatted file fails the
 check and blocks the PR -- it does not autofix in CI.
 
+CI lints the entire `common/`, `rendererplugin/`, and `audioelementplugin/`
+trees, not just this commit's diff -- a violation left by an earlier commit
+on the same branch (or any file you didn't personally touch) fails the check
+too. Before every commit, run the same dry-run CI runs across all three
+directories, not only the files you just edited:
+
+```
+find common -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror
+find rendererplugin -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror
+find audioelementplugin -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror
+```
+
 ## Branch Topology and Upstream
 
 This repo is a fork of a non-A-CX public upstream. Keeping A-CX tooling out of

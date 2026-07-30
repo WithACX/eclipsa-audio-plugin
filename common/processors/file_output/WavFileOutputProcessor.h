@@ -121,12 +121,13 @@ class WavFileOutputProcessor : public ProcessorBase,
   FileWriter* fileWriter_;
   int numSamples_;
   double sampleRate_;
-  long startSampleIdx_;
-  long endSampleIdx_;
+  juce::int64 startSampleIdx_;
+  juce::int64 endSampleIdx_;
   juce::SpinLock lock_;
   std::atomic<bool> hasRecordedWriteFailure_ = false;
   std::shared_ptr<std::atomic<bool>> isAlive_ =
-      std::make_shared<std::atomic<bool>>(true); // Safety valve for deferred updates
+      std::make_shared<std::atomic<bool>>(
+          true);  // Safety valve for deferred updates
   //==============================================================================
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(WavFileOutputProcessor)
 };

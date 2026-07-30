@@ -36,8 +36,9 @@ WavFileOutputProcessor::WavFileOutputProcessor(
 }
 
 WavFileOutputProcessor::~WavFileOutputProcessor() {
-  // Ensure this is either deleted by a unit test (nullptr check) or 
-  // by the message thread since deletion by the audio thread is not safe (lock_ is non-reentrant)
+  // Ensure this is either deleted by a unit test (nullptr check) or
+  // by the message thread since deletion by the audio thread is not safe (lock_
+  // is non-reentrant)
   jassert(juce::MessageManager::getInstanceWithoutCreating() == nullptr ||
           juce::MessageManager::getInstanceWithoutCreating()
               ->isThisTheMessageThread());
@@ -83,8 +84,8 @@ void WavFileOutputProcessor::processBlock(juce::AudioBuffer<float>& buffer,
     auto playHead = getPlayHead();
     if (playHead != NULL) {  // Happens in debug
       auto position = getPlayHead()->getPosition();
-      const long currentSample =
-          static_cast<long>(*position->getTimeInSeconds() * sampleRate_);
+      const juce::int64 currentSample =
+          static_cast<juce::int64>(*position->getTimeInSeconds() * sampleRate_);
       if ((endSampleIdx_ == 0) || (currentSample >= startSampleIdx_ &&
                                    currentSample <= endSampleIdx_)) {
         writeFailed = !fileWriter_->write(buffer);
@@ -103,9 +104,10 @@ void WavFileOutputProcessor::recordWriteFailureIfAny(bool writeSucceeded) {
     return;
   }
   // A persistent failure (disk full, WAV size limit exceeded) fails every
-  // subsequent block. Only the first failure of an export needs to be recorded.'
-  // exchange() both checks and claims that slot atomically; 
-  // hasRecordedWriteFailure_ is reset in setNonRealtime() at the start of the next export.
+  // subsequent block. Only the first failure of an export needs to be
+  // recorded.' exchange() both checks and claims that slot atomically;
+  // hasRecordedWriteFailure_ is reset in setNonRealtime() at the start of the
+  // next export.
   if (hasRecordedWriteFailure_.exchange(true)) {
     return;
   }
@@ -114,9 +116,7 @@ void WavFileOutputProcessor::recordWriteFailureIfAny(bool writeSucceeded) {
   // Deferred via deferRepositoryUpdate() -- see its declaration for why this
   // can't call fileExportRepository_.update() synchronously.
   deferRepositoryUpdate([](FileExport& config) {
-    if (config.getExportError() == kNoError) {
-      config.setExportError(kFileWriteFailed);
-    }
+    config.recordExportErrorIfUnset(kFileWriteFailed);
   });
 }
 
@@ -148,10 +148,8 @@ void WavFileOutputProcessor::setNonRealtime(bool isNonRealtime) noexcept {
                   "WavFileOutputProcessor: Failed to open file for writing: " +
                       kFailedFilePath);
         deferRepositoryUpdate([kFailedFilePath](FileExport& config) {
-          if (config.getExportError() == kNoError) {
-            config.setExportError(
-                classifyWriteFailure(juce::String(kFailedFilePath)));
-          }
+          config.recordExportErrorIfUnset(
+              classifyWriteFailure(juce::String(kFailedFilePath)));
         });
       }
       performingRender_ = true;
@@ -164,9 +162,7 @@ void WavFileOutputProcessor::setNonRealtime(bool isNonRealtime) noexcept {
         // an unreported write failure. Only escalate if nothing more
         // specific has already been recorded earlier in this export.
         deferRepositoryUpdate([](FileExport& config) {
-          if (config.getExportError() == kNoError) {
-            config.setExportError(kFileWriteFailed);
-          }
+          config.recordExportErrorIfUnset(kFileWriteFailed);
         });
       }
       delete fileWriter_;
