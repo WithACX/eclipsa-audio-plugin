@@ -434,6 +434,60 @@ TEST_F(FileOutputTests, mux_no_mismatch_when_durations_match) {
   EXPECT_EQ(fileExportRepository.get().getExportError(), ExportError::kNoError);
 }
 
+// Regression test for a release-testing report that the duration-mismatch
+// warning fired on a real recording that played back fine.
+//
+// The AudioVideoDurationMismatch.mov fixture is a real camera recording whose
+// *video* track (~11.767s) already outlasts its own embedded audio track
+// (~11.712s) -- a ~55ms head/tail drift baked into the source, not introduced
+// by the export. In the field this was muxed against a separate source audio
+// clip (original_audio.mp3, whose decoded PCM length is 562,112 samples @
+// 48kHz = ~11.711s), leaving the exported audio ~56ms shorter than the video.
+//
+// The audio side of the production check is framesWritten_ / sampleRate_, so
+// this reproduces the field case by rendering to that decoded length rather
+// than by decoding the mp3: 4391 blocks * 128 frames = 561,952 frames =
+// ~11.707s, ~59ms short of the video track. Under the original 50ms tolerance
+// that tripped kVideoLongerThanAudio; the tolerance is now 0.5s, so a
+// sub-half-second drift like this must stay clear. Reverting the tolerance to
+// 0.05 fails this test.
+TEST_F(FileOutputTests, mux_no_mismatch_warning_for_sub_half_second_drift) {
+  const juce::Uuid kAE = addAudioElement(Speakers::kStereo);
+  const juce::Uuid kMP = addMixPresentation();
+  addAudioElementsToMix(kMP, {kAE});
+
+  const std::string kMismatchVideo =
+      (std::filesystem::current_path()
+           .parent_path()
+           .append("common")
+           .append("processors")
+           .append("tests")
+           .append("test_resources")
+           .append("AudioVideoDurationMismatch.mov"))
+          .string();
+
+  setTestExportOpts({.codec = AudioCodec::LPCM,
+                     .exportVideo = true,
+                     .videoSource = kMismatchVideo});
+
+  // Confirm the fixture is the ~11.767s recording the drift math below assumes.
+  const double kVideoDurationSec =
+      IAMFExportHelper::getMediaDurationSeconds(kMismatchVideo);
+  ASSERT_NEAR(kVideoDurationSec, 11.767, 0.05);
+
+  bounceAudio(fio_proc, audioElementRepository, 48000, 128, /*numBlocks=*/4391);
+
+  ASSERT_TRUE(std::filesystem::exists(videoOutPath));
+
+  // The drift sits in the band that changed: over the old 50ms tolerance
+  // (would have warned) but under the current 0.5s tolerance (must not).
+  const double kAudioDurationSec = (4391.0 * 128.0) / 48000.0;
+  const double kDriftSec = kVideoDurationSec - kAudioDurationSec;
+  ASSERT_GT(kDriftSec, 0.05);
+  ASSERT_LT(kDriftSec, 0.5);
+  EXPECT_EQ(fileExportRepository.get().getExportError(), ExportError::kNoError);
+}
+
 // Regression test: closeFileExport only runs checkAudioVideoDurationMismatch
 // after a successful mux -- on a mux failure it is skipped entirely (both to
 // avoid opening the untrusted video file on a path that previously never

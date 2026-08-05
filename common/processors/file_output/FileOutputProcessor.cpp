@@ -306,7 +306,14 @@ void FileOutputProcessor::checkAudioVideoDurationMismatch(
   if (!(sampleRate_ > 0)) {
     return;
   }
-  constexpr double kDurationMismatchToleranceSec = 0.05;
+  // A half-second of audio/video drift at the head or tail of an export is
+  // below the threshold of notice in practice, so only warn beyond it. This
+  // deliberately tolerates the small (~tens of ms) mismatches that source
+  // recordings routinely carry -- e.g. a camera .mov whose video track already
+  // outlasts its own audio track -- while still catching the gross truncations
+  // the warning exists to surface. See the
+  // mux_no_mismatch_warning_for_sub_half_second_drift regression test.
+  constexpr double kDurationMismatchToleranceSec = 0.5;
   const double kAudioDurationSec =
       static_cast<double>(framesWritten_) / sampleRate_;
   if (videoDurationSec <= 0.0) {
