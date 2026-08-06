@@ -434,6 +434,70 @@ TEST_F(FileOutputTests, mux_no_mismatch_when_durations_match) {
   EXPECT_EQ(fileExportRepository.get().getExportError(), ExportError::kNoError);
 }
 
+// Regression test: the mismatch tolerance was widened from 0.05s to 0.5s
+// (upstream PR google/eclipsa-audio-plugin#124) so that the few frames of
+// drift routinely present in recorded audio/video pairs stop tripping a
+// false-positive warning. Neither existing mismatch case above exercises
+// this: both sit 1.5s+ outside the tolerance in either direction, far past
+// both the old and new thresholds. Render audio ~0.3s short of the test
+// video's own duration instead -- inside the new 0.5s tolerance, but well
+// outside the old 0.05s one -- so this test would fail if the constant were
+// ever reverted to 0.05. Uses the existing checked-in video fixture and
+// varies only the audio side via bounceAudio's block count, rather than
+// adding another committed media fixture.
+TEST_F(FileOutputTests, mux_no_mismatch_within_widened_tolerance) {
+  const juce::Uuid kAE = addAudioElement(Speakers::kStereo);
+  const juce::Uuid kMP = addMixPresentation();
+  addAudioElementsToMix(kMP, {kAE});
+
+  setTestExportOpts({.codec = AudioCodec::LPCM, .exportVideo = true});
+
+  const double videoDurationSec =
+      getMP4DurationSeconds(ex.getVideoSource().toStdString());
+  ASSERT_GT(videoDurationSec, 0.0);
+
+  // ~3.47 seconds at 48kHz/128 frames per block -- ~0.3s short of the test
+  // video's own ~3.77s duration.
+  const unsigned kNumBlocks = 1300;
+  bounceAudio(fio_proc, audioElementRepository, 48000, 128, kNumBlocks);
+
+  const double drift =
+      videoDurationSec - static_cast<double>(kNumBlocks) * 128 / 48000.0;
+  ASSERT_GT(drift, 0.05);
+  ASSERT_LT(drift, 0.5);
+
+  ASSERT_TRUE(std::filesystem::exists(videoOutPath));
+  EXPECT_EQ(fileExportRepository.get().getExportError(), ExportError::kNoError);
+}
+
+// Companion to the test above: push the same drift just past the widened
+// 0.5s tolerance and confirm the warning still fires, pinning the other side
+// of the boundary the widened constant introduced.
+TEST_F(FileOutputTests, mux_flags_mismatch_just_beyond_widened_tolerance) {
+  const juce::Uuid kAE = addAudioElement(Speakers::kStereo);
+  const juce::Uuid kMP = addMixPresentation();
+  addAudioElementsToMix(kMP, {kAE});
+
+  setTestExportOpts({.codec = AudioCodec::LPCM, .exportVideo = true});
+
+  const double videoDurationSec =
+      getMP4DurationSeconds(ex.getVideoSource().toStdString());
+  ASSERT_GT(videoDurationSec, 0.0);
+
+  // ~3.07 seconds at 48kHz/128 frames per block -- ~0.7s short of the test
+  // video's own ~3.77s duration, just past the widened 0.5s tolerance.
+  const unsigned kNumBlocks = 1150;
+  bounceAudio(fio_proc, audioElementRepository, 48000, 128, kNumBlocks);
+
+  const double drift =
+      videoDurationSec - static_cast<double>(kNumBlocks) * 128 / 48000.0;
+  ASSERT_GT(drift, 0.5);
+
+  ASSERT_TRUE(std::filesystem::exists(videoOutPath));
+  EXPECT_EQ(fileExportRepository.get().getExportError(),
+            ExportError::kVideoLongerThanAudio);
+}
+
 // Regression test: closeFileExport only runs checkAudioVideoDurationMismatch
 // after a successful mux -- on a mux failure it is skipped entirely (both to
 // avoid opening the untrusted video file on a path that previously never

@@ -306,7 +306,12 @@ void FileOutputProcessor::checkAudioVideoDurationMismatch(
   if (!(sampleRate_ > 0)) {
     return;
   }
-  constexpr double kDurationMismatchToleranceSec = 0.05;
+  // Failure tolerance is reasonably large to avoid false positives: recorded
+  // video/audio pairs routinely carry a few frames of head/tail drift (e.g.
+  // ~0.07-0.42s at 24-30fps for a 2-10 frame mismatch), which is imperceptible
+  // and should not raise a warning. The check exists to catch gross
+  // truncations, not sub-second drift.
+  constexpr double kDurationMismatchToleranceSec = 0.5;
   const double kAudioDurationSec =
       static_cast<double>(framesWritten_) / sampleRate_;
   if (videoDurationSec <= 0.0) {
