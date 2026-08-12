@@ -31,6 +31,20 @@ Also exposes a `classify` subcommand -- `check_upstream_leak.py classify <commit
 primitive behind the DPM-10 mixed-commit reminder and the DPM-11 upstream-PR
 replay filter, so 'internal' means the same thing across the guard, the reminder,
 and the filter.
+
+And a `classify-worktree` subcommand -- `check_upstream_leak.py classify-worktree`
+-- which prints one `guarded:<path>` / `contribution:<path>` line per staged,
+unstaged or untracked change, through that same matcher. `classify` needs a
+commit that already exists, so it cannot answer "which UNCOMMITTED paths are
+internal?" -- the question a caller must answer to decide what to stage. It is
+read-only; the internal-artifact capture command consumes the guarded bucket to
+commit strays as `chore(a-cx): ...`, so guarded work product never shares a
+commit with contribution code.
+
+`classify` and `classify-worktree` are RESERVED first arguments: a git remote by
+either name would be dispatched as the subcommand rather than push-checked. That
+fails closed (the push aborts on a usage error instead of going unchecked), but
+do not name a remote either word.
 """
 from __future__ import annotations
 
@@ -203,17 +217,162 @@ def classify_main(argv: List[str]) -> int:
     """`check_upstream_leak.py classify <commit>` -- print the classification of
     one commit ('empty'|'config-only'|'contribution'|'mixed') to stdout and exit
     0. Reuses the same guarded-path config as the pre-push guard. Exit non-zero
-    only on a usage or git error (callers fail closed)."""
+    only on a usage or git error (callers fail closed).
+
+    The config is resolved from the REPO ROOT, not the cwd: `classify` is a
+    standalone query run from wherever the caller happens to be, so reading
+    `.a-cx/github.yaml` relative to the cwd would silently drop the repo's own
+    `scm.internal_paths` on any subdirectory invocation and make the answer
+    depend on the caller's directory (#1504)."""
     if not argv:
         print("usage: check_upstream_leak.py classify <commit>", file=sys.stderr)
         return 2
     commit = argv[0]
-    internal_paths, _release_scope = load_guard_config(Path.cwd())
     try:
+        internal_paths, _release_scope = load_guard_config(git_toplevel())
         print(classify_commit(commit, internal_paths))
     except RuntimeError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
+    return 0
+
+
+def _parse_status_z(payload: str) -> List[str]:
+    """Parse `git status --porcelain -z` output into changed paths.
+
+    Each entry is `XY <path>` -- a 2-char status field, ONE space, then the path
+    (`M  a`, ` M b`, `?? c`, `UU d`). The apparent "two spaces" in `M  a` is a
+    literal space in the Y column, so the prefix is always exactly 3 characters
+    and the path is `entry[3:]`; splitting on whitespace breaks on ` M b` and on
+    any path containing a space.
+
+    For a rename/copy entry (`R` or `C` in either column) `-z` omits the ` -> `
+    the human format uses and REVERSES the pair: this field carries the
+    DESTINATION and the origin follows as the NEXT NUL field, which must be
+    consumed and discarded. Not consuming it would report the origin as a changed
+    path (a path that no longer exists); consuming it for a non-rename entry would
+    swallow the following entry. Unmerged codes (`UU`, `AA`, `DD`, `AU`, `UD`,
+    `DU`, `UA`) never carry a second field and never contain `R`/`C`, so the
+    condition cannot collide with them.
+
+    Using `-z` is what makes this safe rather than heuristic: it disables
+    `core.quotePath` (no `"\\303\\266.md"` wrapping to unquote), and it removes the
+    ` -> ` separator, which is unsplittable in the human format because a file may
+    legitimately be named `a -> b`.
+
+    Fails CLOSED: an unparseable entry raises RuntimeError rather than being
+    skipped, so a caller never reads a short list as a complete one.
+    """
+    if payload.endswith("\0"):
+        payload = payload[:-1]
+    if not payload:
+        return []
+    fields = payload.split("\0")
+    paths: List[str] = []
+    i = 0
+    while i < len(fields):
+        entry = fields[i]
+        i += 1
+        if len(entry) < 4 or entry[2] != " ":
+            raise RuntimeError(f"unparseable git status entry: {entry!r}")
+        xy, path = entry[:2], entry[3:]
+        if "R" in xy or "C" in xy:
+            if i >= len(fields):
+                raise RuntimeError(
+                    f"rename/copy entry missing its origin path: {entry!r}")
+            i += 1  # discard the origin -- only the destination changed
+        paths.append(path)
+    return paths
+
+
+def git_toplevel() -> Path:
+    """Absolute repo root. Fails CLOSED (RuntimeError) outside a work tree, so a
+    caller never mistakes 'not a git repo' for 'nothing changed'. Resolving the
+    root explicitly also means `load_guard_config` finds `.a-cx/github.yaml` when
+    the command runs from a subdirectory."""
+    result = subprocess.run(["git", "rev-parse", "--show-toplevel"],
+                            capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"not inside a git work tree: {result.stderr.strip()}")
+    top = result.stdout.strip()
+    if not top:
+        raise RuntimeError("git rev-parse --show-toplevel returned no path")
+    return Path(top)
+
+
+def worktree_changed_paths(repo_root: Path) -> List[str]:
+    """Every path with a staged, unstaged, or untracked change (deduped, sorted).
+
+    `--untracked-files=all` expands untracked directories into individual files.
+    Ignored paths are absent because `--ignored` is NOT passed -- that omission is
+    the whole guarantee that `.a-cx/runs/` and `.a-cx/worktrees/` never appear.
+    (`-uall` changes untracked GRANULARITY only; it never adds ignored paths. A
+    TRACKED file inside an ignored directory still reports, which is correct:
+    `.gitignore` does not apply to tracked paths.)
+
+    Paths are repo-root-relative: `--porcelain` reports from the repository root
+    and ignores `status.relativePaths`, which is what `is_guarded` expects.
+
+    Coverage is bounded by what `git status` itself reports: a submodule is one
+    path entry and is never descended into, and a symlink is one blob entry rather
+    than a directory to walk. Files changed inside either are invisible here, not
+    misclassified. A consumer that stages this output is reading a point-in-time
+    snapshot, so re-run it immediately before staging rather than reusing an
+    earlier report.
+
+    Fails CLOSED: any git failure raises RuntimeError, matching `commit_paths`.
+    """
+    cmd = ["git", "status", "--porcelain", "-z", "--untracked-files=all"]
+    result = subprocess.run(cmd, cwd=str(repo_root), capture_output=True)
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"could not read the working tree ({' '.join(cmd)}): "
+            f"{result.stderr.decode('utf-8', 'replace').strip()}"
+        )
+    # surrogateescape both ways: a non-UTF-8 filename git handles fine must round
+    # trip byte-exactly to the caller that will `git add` it, not crash here.
+    return sorted(set(_parse_status_z(
+        result.stdout.decode("utf-8", "surrogateescape"))))
+
+
+def classify_worktree_paths(paths: List[str],
+                            internal_paths: List[str]) -> List[str]:
+    """Bucket working-tree paths through the SAME matcher as the pre-push guard:
+    `guarded:<path>` for an A-CX-internal path, `contribution:<path>` otherwise.
+    The internal-artifact capture consumes the guarded bucket, so 'internal' means
+    one thing across the guard, the DPM-10 reminder, the DPM-11 filter, and the
+    capture -- there is no second path list anywhere."""
+    lines: List[str] = []
+    for p in paths:
+        bucket = "guarded" if is_guarded(p, internal_paths) else "contribution"
+        lines.append(f"{bucket}:{p}")
+    return lines
+
+
+def classify_worktree_main(argv: List[str]) -> int:
+    """`check_upstream_leak.py classify-worktree` -- print one line per changed
+    path as `guarded:<path>` or `contribution:<path>`, covering staged, unstaged
+    and untracked changes. A clean tree prints nothing and exits 0. Read-only: it
+    never stages and never commits.
+
+    Exit 2 on a usage or git error, with NOTHING on stdout -- every line is
+    computed before the first byte is written, so a caller can never read a
+    partial list as a complete one."""
+    if argv:
+        print("usage: check_upstream_leak.py classify-worktree", file=sys.stderr)
+        return 2
+    try:
+        root = git_toplevel()
+        internal_paths, _release_scope = load_guard_config(root)
+        lines = classify_worktree_paths(
+            worktree_changed_paths(root), internal_paths)
+    except RuntimeError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    for line in lines:
+        sys.stdout.buffer.write(line.encode("utf-8", "surrogateescape") + b"\n")
+    sys.stdout.buffer.flush()
     return 0
 
 
@@ -247,6 +406,11 @@ def main() -> int:
     # is a standalone query, not a pre-push invocation (which passes a remote).
     if sys.argv[1] == "classify":
         return classify_main(sys.argv[2:])
+    # `classify-worktree`: the same bucketing over UNCOMMITTED changes, for a
+    # caller deciding what to stage. Before the remote check for the same reason
+    # as `classify` -- a standalone query, not a pre-push invocation.
+    if sys.argv[1] == "classify-worktree":
+        return classify_worktree_main(sys.argv[2:])
     remote_name = sys.argv[1]
     if remote_name != UPSTREAM_REMOTE:
         return 0  # only the upstream remote is guarded

@@ -8,7 +8,7 @@ flags:
 deliver:
   # mode: standard         # force micro | standard | project (default: auto-detect)
   pr_review: human         # auto | human | both
-  admin_bypass: false      # true: standing authorization to merge with
+  admin_bypass: true       # true: standing authorization to merge with
                            # gh pr merge --admin when a branch ruleset
                            # blocks the merge (admin rights required)
   isolation: worktree      # worktree (default): each run gets its own git

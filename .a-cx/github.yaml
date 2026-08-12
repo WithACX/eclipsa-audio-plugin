@@ -10,3 +10,11 @@ tracker:
 project:
   org: withACX
   number: 1
+
+# Paths the pre-push leak guard treats as A-CX-internal, on top of its built-in
+# defaults (.a-cx/, .claude/, AGENTS.md, CLAUDE.md, ...). A-CX CI workflows are
+# not in those defaults, so without this they would ride along in an
+# upstream-bound PR to google/eclipsa-audio-plugin.
+scm:
+  internal_paths:
+    - .github/workflows/acx-dev-ci.yml
