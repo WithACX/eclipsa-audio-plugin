@@ -54,6 +54,12 @@ Point2D toWindow(const Mat4& transformMat, const WindowData& windowData,
 // Converting between them is an axis swap (parameter y <-> NDC z, parameter
 // z <-> NDC y, with front/back inverted in sign) plus a /kPositionExtent
 // scale. Callers must never repeat that arithmetic themselves.
+// fromRoomNdc recovers the original integer exactly for every parameter value
+// in range. That exactness is a property of THIS extent, not of float round
+// trips generally: 50 divides and re-multiplies without loss across
+// -50..50 in IEEE-754 single precision. Re-verify it (Coordinates_test.cpp,
+// roundTripIsExactOverTheFullRange) before changing this constant, and if the
+// build ever enables -ffast-math or relaxes -ffp-contract.
 constexpr float kPositionExtent = 50.f;
 
 // A source position in position-parameter space. Integral because the
