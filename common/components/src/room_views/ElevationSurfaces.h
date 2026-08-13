@@ -17,6 +17,7 @@
 #pragma once
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <cstddef>
 #include <vector>
 
 #include "Coordinates.h"
@@ -119,6 +120,34 @@ inline juce::Path sampledEdgesToPath(
   // Closing the subpath spans the room at the near bound.
   path.closeSubPath();
   return path;
+}
+
+/**
+ * @brief Index of the first sample at or behind the room's centre line.
+ *
+ * A surface that crests in the middle of the room has a front half facing the
+ * light the tent's two shades imply and a back half facing away from it, so it
+ * is drawn as two shaded surfaces meeting at the crest. This finds where to cut
+ * a sampled edge: the front half is [0, index], the back half is [index, end),
+ * and the two SHARE the returned sample so no seam opens between them.
+ *
+ * The crest is at the centre line because that is where the arch's parabola and
+ * the dome's hemisphere both peak (Elevation.h). Searching for the coordinate
+ * rather than assuming a sample lands exactly on zero keeps the split correct
+ * if the sample count changes and no sample sits on the centre line.
+ *
+ * @param edge samples along one room edge, near bound first
+ * @return size_t the first index whose front/back coordinate is at or behind
+ * the centre line, or edge.size() when every sample is in front of it
+ */
+inline size_t frontBackSplitIndex(
+    const std::vector<Coordinates::Point4D>& edge) {
+  for (size_t i = 0; i < edge.size(); ++i) {
+    if (edge[i].a[2] >= 0.f) {
+      return i;
+    }
+  }
+  return edge.size();
 }
 
 }  // namespace ElevationSurfaces

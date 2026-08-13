@@ -30,6 +30,7 @@
 
 #include <gtest/gtest.h>
 
+#include <cstddef>
 #include <vector>
 
 namespace {
@@ -194,6 +195,103 @@ TEST(ElevationSurfaces, sampledEdgesToPathRefusesMismatchedEdges) {
   EXPECT_TRUE(ElevationSurfaces::sampledEdgesToPath(
                   identityTransform(), kWindow, leftEdge, rightEdge)
                   .isEmpty());
+}
+
+// The arch and the dome crest at the room's centre line, so each is drawn as a
+// front half and a back half in different shades. The split lands on the sample
+// AT the centre line, which both halves keep -- that shared sample is what
+// makes them meet at the crest instead of leaving a seam.
+TEST(ElevationSurfaces, frontBackSplitIndexFindsTheCentreLineSample) {
+  // The arch's own sampling: 41 samples, front/back from -1 to 1, so sample 20
+  // sits exactly on the centre line.
+  std::vector<Coordinates::Point4D> edge;
+  for (int i = 0; i < 41; ++i) {
+    const float frontBack = -1.f + i * 0.05f;
+    edge.push_back({-1.f, 0.f, frontBack, 1.f});
+  }
+
+  const size_t split = ElevationSurfaces::frontBackSplitIndex(edge);
+
+  EXPECT_EQ(split, 20u);
+  EXPECT_NEAR(edge[split].a[2], 0.f, kTolerance);
+  // Both halves keep sample 20: the front half is [0, 20] and the back half is
+  // [20, 41), so each has 21 samples and neither is degenerate.
+  EXPECT_EQ(split + 1, 21u);
+  EXPECT_EQ(edge.size() - split, 21u);
+}
+
+// No sample need land exactly on the centre line -- an even sample count
+// straddles it. The split then takes the first sample behind it, so the two
+// halves still tile the edge with no gap and no overlap beyond the shared
+// bound.
+TEST(ElevationSurfaces, frontBackSplitIndexStraddlesTheCentreLine) {
+  // Four samples at -0.75, -0.25, 0.25, 0.75: none is zero.
+  std::vector<Coordinates::Point4D> edge;
+  for (int i = 0; i < 4; ++i) {
+    edge.push_back({-1.f, 0.f, -0.75f + i * 0.5f, 1.f});
+  }
+
+  const size_t split = ElevationSurfaces::frontBackSplitIndex(edge);
+
+  EXPECT_EQ(split, 2u);
+  EXPECT_GT(edge[split].a[2], 0.f);
+  EXPECT_LT(edge[split - 1].a[2], 0.f);
+}
+
+// An edge wholly in front of the centre line has no back half. The index then
+// addresses one past the last sample, which is a valid empty range rather than
+// an out-of-range read -- the case that would otherwise walk off the end.
+TEST(ElevationSurfaces, frontBackSplitIndexReturnsTheSizeWhenNoSampleIsBehind) {
+  std::vector<Coordinates::Point4D> edge;
+  for (int i = 0; i < 5; ++i) {
+    edge.push_back({-1.f, 0.f, -1.f + i * 0.1f, 1.f});
+  }
+
+  EXPECT_EQ(ElevationSurfaces::frontBackSplitIndex(edge), edge.size());
+}
+
+// The mirror case: an edge wholly at or behind the centre line has no front
+// half, so the split is at the very first sample.
+TEST(ElevationSurfaces, frontBackSplitIndexReturnsZeroWhenEverySampleIsBehind) {
+  std::vector<Coordinates::Point4D> edge;
+  for (int i = 0; i < 5; ++i) {
+    edge.push_back({-1.f, 0.f, i * 0.25f, 1.f});
+  }
+
+  EXPECT_EQ(ElevationSurfaces::frontBackSplitIndex(edge), 0u);
+}
+
+// An empty edge has nothing to split; the size is the only answer that keeps
+// both derived ranges empty rather than inverted.
+TEST(ElevationSurfaces, frontBackSplitIndexHandlesAnEmptyEdge) {
+  EXPECT_EQ(ElevationSurfaces::frontBackSplitIndex({}), 0u);
+}
+
+// Each half of a split arch is still a well-formed surface: 21 samples yields
+// the same element counts sampledEdgesToPath produces for any 21-sample edge,
+// so neither half is truncated by the slicing.
+TEST(ElevationSurfaces, splitArchHalvesAreBothWellFormedSurfaces) {
+  std::vector<Coordinates::Point4D> leftEdge, rightEdge;
+  makeEdges(41, leftEdge, rightEdge);
+  const size_t split = 20;
+
+  const juce::Path frontHalf = ElevationSurfaces::sampledEdgesToPath(
+      identityTransform(), kWindow,
+      {leftEdge.begin(), leftEdge.begin() + split + 1},
+      {rightEdge.begin(), rightEdge.begin() + split + 1});
+  const juce::Path backHalf = ElevationSurfaces::sampledEdgesToPath(
+      identityTransform(), kWindow, {leftEdge.begin() + split, leftEdge.end()},
+      {rightEdge.begin() + split, rightEdge.end()});
+
+  const auto expectWellFormed = [](const juce::Path& half, const char* name) {
+    const PathElementCounts counts = countElements(half);
+    EXPECT_EQ(counts.subPathStarts, 1) << name;
+    EXPECT_EQ(counts.quadratics, 2 * (21 - 2)) << name;
+    EXPECT_EQ(counts.lines, 1) << name;
+    EXPECT_EQ(counts.closes, 1) << name;
+  };
+  expectWellFormed(frontHalf, "front");
+  expectWellFormed(backHalf, "back");
 }
 
 // The window drives the projection: the same surface drawn into a window twice

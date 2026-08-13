@@ -14,7 +14,9 @@
 
 #include "PerspectiveRoomViews.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstddef>
 #include <vector>
 
 #include "components/src/room_views/ElevationSurfaces.h"
@@ -261,9 +263,23 @@ void AudioElementPluginTopView::paintArchElevation(
     rightEdge.push_back({1.f, height, frontBack, 1.f});
   }
 
+  // The parabola crests at the centre line, so the surface has a front half
+  // facing the room's front and a back half falling away from it -- the same
+  // shape as the tent, sampled instead of faceted. Shade it the same way: the
+  // back half recedes, the front half faces. Both halves keep the crest sample,
+  // so they meet exactly at the ridge with no seam between them.
+  const size_t kCrest = ElevationSurfaces::frontBackSplitIndex(leftEdge);
+  const size_t kFrontEnd = std::min(kCrest + 1, leftEdge.size());
+
+  g.setColour(elevationRecedingSurface());
+  g.fillPath(ElevationSurfaces::sampledEdgesToPath(
+      kTransformMat_, window, {leftEdge.begin() + kCrest, leftEdge.end()},
+      {rightEdge.begin() + kCrest, rightEdge.end()}));
+
   g.setColour(elevationFacingSurface());
-  g.fillPath(ElevationSurfaces::sampledEdgesToPath(kTransformMat_, window,
-                                                   leftEdge, rightEdge));
+  g.fillPath(ElevationSurfaces::sampledEdgesToPath(
+      kTransformMat_, window, {leftEdge.begin(), leftEdge.begin() + kFrontEnd},
+      {rightEdge.begin(), rightEdge.begin() + kFrontEnd}));
 }
 
 void AudioElementPluginTopView::paintDomeElevation(
@@ -274,23 +290,42 @@ void AudioElementPluginTopView::paintDomeElevation(
   // function is what ties the radius to the clamp rather than to a constant:
   // on the unit circle it returns the sampled (x, y) unclamped at floor
   // height.
-  const int kNumSamples = 81;
-  std::vector<Coordinates::Point4D> boundAnchors;
-  boundAnchors.reserve(kNumSamples);
-  for (int i = 0; i < kNumSamples; ++i) {
-    const float theta =
-        i * juce::MathConstants<float>::twoPi / (kNumSamples - 1);
+  // The hemisphere crests at the centre of the room, so like the tent and the
+  // arch it has a half facing the room's front and a half falling away from it.
+  // Drawn as two half-discs in the same two shades, split across the centre
+  // line. Sampling each half over its own angular range rather than
+  // partitioning one full sweep is what makes the shared edge the exact
+  // diameter: cos(0) and cos(pi) are exactly +/-1, so both halves close on the
+  // same chord and no seam opens along it. The step is pi/40 per half, so the
+  // union is the same 81 boundary positions the full sweep visited and the
+  // radius is unchanged.
+  const int kSamplesPerHalf = 41;
+  const auto boundAnchorAt = [](const float theta) {
     const Coordinates::Point3D boundPt =
         ElevationListener::getDomeElevationPtClamped(
             {std::cos(theta), std::sin(theta), 0.f}, {});
-    boundAnchors.push_back({boundPt.a[0], boundPt.a[1], boundPt.a[2], 1.f});
+    return Coordinates::Point4D{boundPt.a[0], boundPt.a[1], boundPt.a[2], 1.f};
+  };
+
+  std::vector<Coordinates::Point4D> backHalf, frontHalf;
+  backHalf.reserve(kSamplesPerHalf);
+  frontHalf.reserve(kSamplesPerHalf);
+  for (int i = 0; i < kSamplesPerHalf; ++i) {
+    // sin(theta) is the front/back coordinate, so [0, pi) is the back half and
+    // [pi, 2pi) the front half.
+    const float theta =
+        i * juce::MathConstants<float>::pi / (kSamplesPerHalf - 1);
+    backHalf.push_back(boundAnchorAt(theta));
+    frontHalf.push_back(boundAnchorAt(theta + juce::MathConstants<float>::pi));
   }
 
-  // The bound sits on the floor, below the source, so it takes the receding
-  // shade.
   g.setColour(elevationRecedingSurface());
   g.fillPath(
-      ElevationSurfaces::anchorsToPath(kTransformMat_, window, boundAnchors));
+      ElevationSurfaces::anchorsToPath(kTransformMat_, window, backHalf));
+
+  g.setColour(elevationFacingSurface());
+  g.fillPath(
+      ElevationSurfaces::anchorsToPath(kTransformMat_, window, frontHalf));
 }
 
 void AudioElementPluginTopView::paintCurveElevation(
