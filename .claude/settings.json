@@ -1,11 +1,15 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
-  "extraKnownMarketplaces": {
-    "a-cx-ai-config": {
-      "source": { "source": "github", "repo": "withACX/a-cx-ai-config" }
-    }
-  },
   "enabledPlugins": {
     "cpp@a-cx-ai-config": true
+  },
+  "extraKnownMarketplaces": {
+    "a-cx-ai-config": {
+      "source": {
+        "source": "github",
+        "repo": "withACX/a-cx-ai-config"
+      },
+      "autoUpdate": true
+    }
   }
 }
