@@ -17,6 +17,7 @@
 #include <cmath>
 #include <vector>
 
+#include "components/src/room_views/ElevationSurfaces.h"
 #include "data_structures/src/RepositoryCollection.h"
 
 namespace {
@@ -24,74 +25,16 @@ namespace {
 // The two shades of the room-view translucent grey the rear projection
 // established. A pattern that presents more than one surface uses both, so
 // adjacent surfaces read as separate planes instead of merging into one panel.
-juce::Colour recedingSurface() {
+//
+// Named for the elevation surfaces on purpose: this file is unity-built into
+// components.cpp with twenty other sources, and an anonymous namespace is
+// shared across that whole translation unit, so a bare `recedingSurface` here
+// would be a name another source could collide with.
+juce::Colour elevationRecedingSurface() {
   return EclipsaColours::roomviewTranslucentWall.brighter(0.2f);
 }
-juce::Colour facingSurface() {
+juce::Colour elevationFacingSurface() {
   return EclipsaColours::roomviewTranslucentWall.brighter();
-}
-
-// Close a run of 3D anchor vertices into a window-space path with straight
-// edges. Every elevation surface is built from anchors put through
-// Coordinates::toWindow, so resizing the plugin window keeps the surface
-// aligned to the drawn room instead of to a pixel constant.
-juce::Path anchorsToPath(const Coordinates::Mat4& transformMat,
-                         const Coordinates::WindowData& window,
-                         const std::vector<Coordinates::Point4D>& anchors) {
-  juce::Path path;
-  if (anchors.empty()) {
-    return path;
-  }
-  const Coordinates::Point2D start =
-      Coordinates::toWindow(transformMat, window, anchors.front());
-  path.startNewSubPath(start.a[0], start.a[1]);
-  for (size_t i = 1; i < anchors.size(); ++i) {
-    const Coordinates::Point2D pt =
-        Coordinates::toWindow(transformMat, window, anchors[i]);
-    path.lineTo(pt.a[0], pt.a[1]);
-  }
-  path.closeSubPath();
-  return path;
-}
-
-// Stitch two sampled edges of one curved surface -- the left edge and the
-// right edge of the room, sampled at the same front/back positions -- into a
-// single filled surface spanning left to right. quadraticTo is kept from the
-// rear projection's arch so a sampled edge stays smooth rather than showing
-// its facets.
-juce::Path sampledEdgesToPath(
-    const Coordinates::Mat4& transformMat,
-    const Coordinates::WindowData& window,
-    const std::vector<Coordinates::Point4D>& leftEdge,
-    const std::vector<Coordinates::Point4D>& rightEdge) {
-  juce::Path path;
-  if (leftEdge.size() < 3 || leftEdge.size() != rightEdge.size()) {
-    return path;
-  }
-
-  std::vector<Coordinates::Point2D> left, right;
-  left.reserve(leftEdge.size());
-  right.reserve(rightEdge.size());
-  for (size_t i = 0; i < leftEdge.size(); ++i) {
-    left.push_back(Coordinates::toWindow(transformMat, window, leftEdge[i]));
-    right.push_back(Coordinates::toWindow(transformMat, window, rightEdge[i]));
-  }
-
-  const size_t kLast = left.size() - 1;
-  path.startNewSubPath(left[0].a[0], left[0].a[1]);
-  for (size_t i = 1; i <= kLast - 1; ++i) {
-    path.quadraticTo(left[i].a[0], left[i].a[1], left[i + 1].a[0],
-                     left[i + 1].a[1]);
-  }
-  // Span the room at the far front/back bound, then walk the right edge back.
-  path.lineTo(right[kLast].a[0], right[kLast].a[1]);
-  for (size_t i = kLast - 1; i >= 1; --i) {
-    path.quadraticTo(right[i].a[0], right[i].a[1], right[i - 1].a[0],
-                     right[i - 1].a[1]);
-  }
-  // Closing the subpath spans the room at the near bound.
-  path.closeSubPath();
-  return path;
 }
 
 }  // namespace
@@ -269,8 +212,9 @@ void AudioElementPluginTopView::paintFlatElevation(
       {-1.f, currentFlatHeight_, 1.f, 1.f},
   };
 
-  g.setColour(facingSurface());
-  g.fillPath(anchorsToPath(kTransformMat_, window, kFlatAnchors));
+  g.setColour(elevationFacingSurface());
+  g.fillPath(
+      ElevationSurfaces::anchorsToPath(kTransformMat_, window, kFlatAnchors));
 }
 
 void AudioElementPluginTopView::paintTentElevation(
@@ -288,13 +232,13 @@ void AudioElementPluginTopView::paintTentElevation(
 
   // Shade the two planes differently so the shared ridge reads as an edge
   // rather than the pair merging into one panel.
-  g.setColour(recedingSurface());
-  g.fillPath(anchorsToPath(
+  g.setColour(elevationRecedingSurface());
+  g.fillPath(ElevationSurfaces::anchorsToPath(
       kTransformMat_, window,
       {kBackFloorLeft, kBackFloorRight, kRidgeRight, kRidgeLeft}));
 
-  g.setColour(facingSurface());
-  g.fillPath(anchorsToPath(
+  g.setColour(elevationFacingSurface());
+  g.fillPath(ElevationSurfaces::anchorsToPath(
       kTransformMat_, window,
       {kFrontFloorLeft, kFrontFloorRight, kRidgeRight, kRidgeLeft}));
 }
@@ -317,8 +261,9 @@ void AudioElementPluginTopView::paintArchElevation(
     rightEdge.push_back({1.f, height, frontBack, 1.f});
   }
 
-  g.setColour(facingSurface());
-  g.fillPath(sampledEdgesToPath(kTransformMat_, window, leftEdge, rightEdge));
+  g.setColour(elevationFacingSurface());
+  g.fillPath(ElevationSurfaces::sampledEdgesToPath(kTransformMat_, window,
+                                                   leftEdge, rightEdge));
 }
 
 void AudioElementPluginTopView::paintDomeElevation(
@@ -343,8 +288,9 @@ void AudioElementPluginTopView::paintDomeElevation(
 
   // The bound sits on the floor, below the source, so it takes the receding
   // shade.
-  g.setColour(recedingSurface());
-  g.fillPath(anchorsToPath(kTransformMat_, window, boundAnchors));
+  g.setColour(elevationRecedingSurface());
+  g.fillPath(
+      ElevationSurfaces::anchorsToPath(kTransformMat_, window, boundAnchors));
 }
 
 void AudioElementPluginTopView::paintCurveElevation(
@@ -371,6 +317,7 @@ void AudioElementPluginTopView::paintCurveElevation(
     rightEdge.push_back({1.f, height, frontBack, 1.f});
   }
 
-  g.setColour(facingSurface());
-  g.fillPath(sampledEdgesToPath(kTransformMat_, window, leftEdge, rightEdge));
+  g.setColour(elevationFacingSurface());
+  g.fillPath(ElevationSurfaces::sampledEdgesToPath(kTransformMat_, window,
+                                                   leftEdge, rightEdge));
 }
