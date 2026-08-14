@@ -70,14 +70,25 @@ float projectedOutlineWidth(const Coordinates::WindowData& window,
 // The tent's surface height at one front/back position: the ridge at the centre
 // line falling linearly to the floor at either bound, which is the shape
 // paintTentElevation draws from its six anchors.
-float tentRoofAt(const float frontBack) {
+float tentRoofAt(const float, const float frontBack) {
   return 1.f - std::abs(frontBack) * 2.f;
+}
+
+// The dome's hemisphere: the one surface that falls away in left/right as well
+// as front/back, and therefore the one under which BOTH connectors can cross.
+// Outside the unit circle it meets the floor, as the real one does at its rim.
+float domeRoofAt(const float leftRight, const float frontBack) {
+  const float kRadiusSq = leftRight * leftRight + frontBack * frontBack;
+  if (kRadiusSq >= 1.f) {
+    return -1.f;
+  }
+  return 2.f * std::sqrt(1.f - kRadiusSq) - 1.f;
 }
 
 // A monotonic surface, standing in for the logarithmic curve. It crosses any
 // one height ONCE, so it is what distinguishes a split that finds crossings
 // from one that assumes the symmetric pair the tent and arch happen to have.
-float monotonicRoofAt(const float frontBack) { return frontBack; }
+float monotonicRoofAt(const float, const float frontBack) { return frontBack; }
 
 // A segment's length in room-view NDC, for the coverage invariant below.
 float segmentLength(const HeightIndicator::Segment& segment) {
@@ -277,7 +288,8 @@ TEST(HeightIndicatorTest, connectorsStayAttachedToTheOutlineAcrossWindowSizes) {
 // here through the -1 sentinel.
 TEST(HeightIndicatorTest, splitPutsEverythingAboveAFloorLevelSurface) {
   const HeightIndicator::SplitOutline kSplit =
-      HeightIndicator::splitAtElevation(0.f, [](const float) { return -1.f; });
+      HeightIndicator::splitAtElevation(
+          0.f, [](const float, const float) { return -1.f; });
 
   EXPECT_TRUE(kSplit.below.empty());
   EXPECT_EQ(kSplit.above.size(), 4u);
@@ -288,8 +300,8 @@ TEST(HeightIndicatorTest, splitPutsEverythingAboveAFloorLevelSurface) {
 // outline is drawn before the fill and the roof tints all of it.
 TEST(HeightIndicatorTest, splitPutsEverythingBelowAHigherFlatSurface) {
   const HeightIndicator::SplitOutline kSplit =
-      HeightIndicator::splitAtElevation(-0.5f,
-                                        [](const float) { return 0.5f; });
+      HeightIndicator::splitAtElevation(
+          -0.5f, [](const float, const float) { return 0.5f; });
 
   EXPECT_TRUE(kSplit.above.empty());
   EXPECT_EQ(kSplit.below.size(), 4u);
@@ -301,8 +313,8 @@ TEST(HeightIndicatorTest, splitPutsEverythingBelowAHigherFlatSurface) {
 // the common case, and a strict comparison would flicker it between the lists.
 TEST(HeightIndicatorTest, splitResolvesAnExactTieToAbove) {
   const HeightIndicator::SplitOutline kSplit =
-      HeightIndicator::splitAtElevation(0.25f,
-                                        [](const float) { return 0.25f; });
+      HeightIndicator::splitAtElevation(
+          0.25f, [](const float, const float) { return 0.25f; });
 
   EXPECT_TRUE(kSplit.below.empty());
   EXPECT_EQ(kSplit.above.size(), 4u);
@@ -333,7 +345,7 @@ TEST(HeightIndicatorTest, splitCrossesWhereTheSurfaceMeetsTheOutlineHeight) {
   for (const HeightIndicator::Segment& run : kSplit.below) {
     EXPECT_NEAR(std::abs(run.start.a[2]), 0.5f, 1e-3f);
     EXPECT_NEAR(std::abs(run.end.a[2]), 0.5f, 1e-3f);
-    EXPECT_NEAR(tentRoofAt(run.start.a[2]), 0.f, 1e-3f);
+    EXPECT_NEAR(tentRoofAt(run.start.a[0], run.start.a[2]), 0.f, 1e-3f);
   }
 }
 
@@ -396,7 +408,8 @@ TEST(HeightIndicatorTest, leaderSplitLeavesBothWholeAboveAFloorLevelSurface) {
   const Coordinates::Point4D kSource = {0.2f, 0.f, -0.5f, 1.f};
   const HeightIndicator::SplitOutline kSplit =
       HeightIndicator::splitLeaderLinesAtElevation(
-          kSource, [](const float) { return -1.f; });
+          kSource, [](const float, const float) { return -1.f; },
+          /*splitRightEdge=*/false);
 
   EXPECT_TRUE(kSplit.below.empty());
   EXPECT_EQ(kSplit.above.size(), 2u);
@@ -410,7 +423,8 @@ TEST(HeightIndicatorTest, leaderSplitCutsOnlyTheBackEdgeConnector) {
   // The source rests ON the tent at front/back -0.5, where its height is 0.
   const Coordinates::Point4D kSource = {0.2f, 0.f, -0.5f, 1.f};
   const HeightIndicator::SplitOutline kSplit =
-      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt);
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt,
+                                                   /*splitRightEdge=*/false);
 
   EXPECT_EQ(kSplit.below.size(), 1u);
   EXPECT_EQ(kSplit.above.size(), 2u);
@@ -427,7 +441,8 @@ TEST(HeightIndicatorTest, leaderSplitCutsOnlyTheBackEdgeConnector) {
 TEST(HeightIndicatorTest, leaderSplitLeavesTheBackSlopeUncut) {
   const Coordinates::Point4D kSource = {0.2f, 0.f, 0.5f, 1.f};
   const HeightIndicator::SplitOutline kSplit =
-      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt);
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt,
+                                                   /*splitRightEdge=*/false);
 
   EXPECT_TRUE(kSplit.below.empty());
   EXPECT_EQ(kSplit.above.size(), 2u);
@@ -440,7 +455,8 @@ TEST(HeightIndicatorTest, leaderSplitLeavesTheBackSlopeUncut) {
 TEST(HeightIndicatorTest, leaderSplitEmitsNoZeroLengthRunAtTheSource) {
   const Coordinates::Point4D kSource = {0.2f, 0.f, -0.5f, 1.f};
   const HeightIndicator::SplitOutline kSplit =
-      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt);
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt,
+                                                   /*splitRightEdge=*/false);
 
   for (const HeightIndicator::Segment& run : kSplit.below) {
     EXPECT_GT(segmentLength(run), 1e-4f);
@@ -458,7 +474,8 @@ TEST(HeightIndicatorTest, leaderSplitRunsKeepTheSourceHeightAndSpan) {
   const std::array<HeightIndicator::Segment, 2> kWhole =
       HeightIndicator::leaderLines(kSource);
   const HeightIndicator::SplitOutline kSplit =
-      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt);
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt,
+                                                   /*splitRightEdge=*/false);
 
   float total = 0.f;
   for (const HeightIndicator::Segment& run : kSplit.below) {
@@ -486,7 +503,8 @@ TEST(HeightIndicatorTest, leaderSplitAlwaysDrawsTheRightEdgeConnectorOnTop) {
   const Coordinates::Point4D kSource = {0.2f, -0.5f, -0.5f, 1.f};
   const HeightIndicator::SplitOutline kSplit =
       HeightIndicator::splitLeaderLinesAtElevation(
-          kSource, [](const float) { return 0.9f; });
+          kSource, [](const float, const float) { return 0.9f; },
+          /*splitRightEdge=*/false);
 
   EXPECT_TRUE(anyRunReachesTheRightBound(kSplit.above));
   EXPECT_FALSE(anyRunReachesTheRightBound(kSplit.below));
@@ -507,9 +525,11 @@ TEST(HeightIndicatorTest,
   for (const float kNudge : {-1e-3f, 0.f, 1e-3f}) {
     const HeightIndicator::SplitOutline kSplit =
         HeightIndicator::splitLeaderLinesAtElevation(
-            kSource, [kNudge](const float frontBack) {
-              return tentRoofAt(frontBack) + kNudge;
-            });
+            kSource,
+            [kNudge](const float leftRight, const float frontBack) {
+              return tentRoofAt(leftRight, frontBack) + kNudge;
+            },
+            /*splitRightEdge=*/false);
 
     EXPECT_TRUE(anyRunReachesTheRightBound(kSplit.above)) << "nudge " << kNudge;
     EXPECT_FALSE(anyRunReachesTheRightBound(kSplit.below))
@@ -523,7 +543,8 @@ TEST(HeightIndicatorTest,
 TEST(HeightIndicatorTest, rightEdgeConnectorKeepsItsSpanWhenPlacedOnTop) {
   const Coordinates::Point4D kSource = {-0.4f, 0.2f, 0.3f, 1.f};
   const HeightIndicator::SplitOutline kSplit =
-      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt);
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt,
+                                                   /*splitRightEdge=*/false);
 
   const HeightIndicator::Segment kWhole =
       HeightIndicator::leaderLines(kSource)[1];
@@ -541,4 +562,96 @@ TEST(HeightIndicatorTest, rightEdgeConnectorKeepsItsSpanWhenPlacedOnTop) {
     EXPECT_NEAR(segmentLength(run), segmentLength(kWhole), kTolerance);
   }
   EXPECT_TRUE(found);
+}
+
+// The dome is the one surface that falls away in left/right as well as
+// front/back, so it is the one under which the RIGHT-EDGE connector genuinely
+// crosses rather than resting coincident with the surface. These pin that
+// asymmetry, which is why the split takes a flag rather than inferring it.
+
+// From a source LEFT of the room's centre the right-edge connector runs over
+// the dome's crest and dips under it -- the same shape the back-edge connector
+// has from a source in front of centre, in the other axis.
+TEST(HeightIndicatorTest,
+     domeCutsTheRightEdgeConnectorFromASourceLeftOfCentre) {
+  // On the dome at left/right -0.5, front/back 0: height 2*sqrt(0.75) - 1.
+  const float kHeight = domeRoofAt(-0.5f, 0.f);
+  const Coordinates::Point4D kSource = {-0.5f, kHeight, 0.f, 1.f};
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, domeRoofAt,
+                                                   /*splitRightEdge=*/true);
+
+  // The submerged run reaches the room's right bound side of the source and
+  // surfaces where the dome falls back to the source's height, mirrored about
+  // the centre at left/right +0.5.
+  ASSERT_EQ(kSplit.below.size(), 1u);
+  EXPECT_NEAR(kSplit.below[0].start.a[0], -0.5f, 1e-3f);
+  EXPECT_NEAR(kSplit.below[0].end.a[0], 0.5f, 1e-3f);
+}
+
+// From a source RIGHT of centre the dome only falls away toward the right
+// bound, so the right-edge connector stays above it throughout -- the half the
+// left-of-centre case cannot show.
+TEST(HeightIndicatorTest, domeLeavesTheRightEdgeConnectorUncutRightOfCentre) {
+  const float kHeight = domeRoofAt(0.5f, 0.f);
+  const Coordinates::Point4D kSource = {0.5f, kHeight, 0.f, 1.f};
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, domeRoofAt,
+                                                   /*splitRightEdge=*/true);
+
+  EXPECT_TRUE(kSplit.below.empty());
+  EXPECT_EQ(kSplit.above.size(), 2u);
+}
+
+// Both connectors can be cut at once, which no other pattern can do: a source
+// forward of and left of centre runs under the dome in both axes.
+TEST(HeightIndicatorTest, domeCanCutBothConnectorsAtOnce) {
+  const float kHeight = domeRoofAt(-0.4f, -0.4f);
+  const Coordinates::Point4D kSource = {-0.4f, kHeight, -0.4f, 1.f};
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, domeRoofAt,
+                                                   /*splitRightEdge=*/true);
+
+  ASSERT_EQ(kSplit.below.size(), 2u);
+
+  // One submerged run per connector, told apart by the axis it travels: the
+  // right-edge connector's varies in left/right, the back-edge connector's in
+  // front/back. Neither reaches a room bound -- both END at their crossing,
+  // which is what distinguishes a cut connector from a whole one.
+  bool cutAcrossLeftRight = false, cutAcrossFrontBack = false;
+  for (const HeightIndicator::Segment& run : kSplit.below) {
+    if (std::abs(run.end.a[0] - run.start.a[0]) > kTolerance) {
+      cutAcrossLeftRight = true;
+    }
+    if (std::abs(run.end.a[2] - run.start.a[2]) > kTolerance) {
+      cutAcrossFrontBack = true;
+    }
+  }
+  EXPECT_TRUE(cutAcrossLeftRight);
+  EXPECT_TRUE(cutAcrossFrontBack);
+  EXPECT_FALSE(anyRunReachesTheRightBound(kSplit.below));
+}
+
+// The outline never crosses the dome, whatever the source height. It rests on
+// the room's SIDES, and the dome meets the floor at its rim inside them, so
+// there is nothing there to pass under -- this falls out of the geometry rather
+// than being special-cased, and it is what keeps the dome looking unchanged.
+TEST(HeightIndicatorTest, domeNeverCutsTheOutline) {
+  for (const float kHeight : {-0.9f, -0.5f, 0.f, 0.5f, 0.9f}) {
+    const HeightIndicator::SplitOutline kSplit =
+        HeightIndicator::splitAtElevation(kHeight, domeRoofAt);
+
+    EXPECT_TRUE(kSplit.below.empty()) << "height " << kHeight;
+    EXPECT_EQ(kSplit.above.size(), 4u) << "height " << kHeight;
+  }
+}
+
+// The surface is read at the point being tested, not at one coordinate of it.
+// Under the dome two positions sharing a front/back sit at different heights,
+// so a split that passed only front/back would classify them alike.
+TEST(HeightIndicatorTest, domeHeightDependsOnBothCoordinates) {
+  EXPECT_GT(domeRoofAt(0.f, 0.f), domeRoofAt(0.6f, 0.f));
+  EXPECT_NEAR(domeRoofAt(0.6f, 0.f), domeRoofAt(-0.6f, 0.f), kTolerance);
+  EXPECT_NEAR(domeRoofAt(1.f, 0.f), -1.f, kTolerance);
+  EXPECT_NEAR(domeRoofAt(0.8f, 0.8f), -1.f, kTolerance);
 }

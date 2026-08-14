@@ -196,13 +196,14 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
     // One height function, two splits. The outline and a connector meet at a
     // point, so they have to agree about which side of the roof that point is
     // on; a second copy of this switch is how they would stop agreeing.
-    const auto kRoofAt = [this](const float frontBack) {
-      return elevationHeightAt(frontBack);
+    const auto kRoofAt = [this](const float leftRight, const float frontBack) {
+      return elevationHeightAt(leftRight, frontBack);
     };
     outline = HeightIndicator::splitAtElevation(
         transformedTracks_[0].ndcPos.a[1], kRoofAt);
     connectors = HeightIndicator::splitLeaderLinesAtElevation(
-        transformedTracks_[0].ndcPos, kRoofAt);
+        transformedTracks_[0].ndcPos, kRoofAt,
+        elevationVariesAcrossLeftRight());
   }
 
   paintIndicatorRuns(wData, outline.below, kOutlineThickness, g);
@@ -243,10 +244,7 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
 }
 
 float AudioElementPluginTopView::elevationHeightAt(
-    const float frontBack) const {
-  // Each pattern's surface height at one front/back position. The three curved
-  // patterns are height fields in front/back alone, which is why one float in
-  // and one float out covers all of them.
+    const float leftRight, const float frontBack) const {
   switch (currentElevation_) {
     case AudioElementSpatialLayout::Elevation::kFlat:
       return currentFlatHeight_;
@@ -259,16 +257,39 @@ float AudioElementPluginTopView::elevationHeightAt(
       // value the listener passes IS the NDC front/back coordinate.
       return ElevationListener::getCurveElevationPt({-1.f, frontBack, 0.f})
           .a[1];
-    case AudioElementSpatialLayout::Elevation::kDome:
+    case AudioElementSpatialLayout::Elevation::kDome: {
+      // The hemisphere, and the one pattern needing BOTH coordinates: it falls
+      // away from the room's centre in left/right as well as front/back.
+      //
+      // Outside the unit circle the dome does not exist -- the surface meets
+      // the floor at its rim, which is why paintDomeElevation's disc sits at
+      // floor height and still reads as the hemisphere's silhouette from
+      // directly above. The domain is checked HERE rather than left to the
+      // static: getDomeElevationPtClamped would CLAMP such a point onto the
+      // rim, and for a left/right beyond the room's centre it takes the square
+      // root of a negative.
+      const float kRadiusSq = leftRight * leftRight + frontBack * frontBack;
+      if (kRadiusSq >= 1.f) {
+        return -1.f;
+      }
+      return ElevationListener::getDomeElevationPtClamped(
+                 {leftRight, frontBack, 0.f}, {})
+          .a[1];
+    }
     default:
-      // Dome and kNone alike: the floor, and it is literal rather than a
-      // convenience. paintDomeElevation samples the UNIT circle, where the
-      // sphere equation returns -1, so the dome draws as a floor-level disc
-      // marking the clamp bound rather than as a surface; kNone draws nothing
-      // at all. Either way there is nothing to pass under, and every run comes
-      // back in `above`.
+      // kNone draws nothing at all, so there is nothing to pass under and every
+      // run comes back in `above`.
       return -1.f;
   }
+}
+
+bool AudioElementPluginTopView::elevationVariesAcrossLeftRight() const {
+  // Only the dome. Tent, arch, and curve are height fields in front/back alone,
+  // and a flat panel is one height everywhere, so under all four the right-edge
+  // connector lies at a single surface height and is placed rather than
+  // classified. Under the dome it genuinely crosses, and must be split
+  // (HeightIndicator::splitLeaderLinesAtElevation states the whole rule).
+  return currentElevation_ == AudioElementSpatialLayout::Elevation::kDome;
 }
 
 void AudioElementPluginTopView::paintIndicatorRuns(

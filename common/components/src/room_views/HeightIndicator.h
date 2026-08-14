@@ -128,8 +128,10 @@ inline Coordinates::Point4D pointAlong(const Segment& segment, const float t) {
  * logarithmic pattern is monotonic) as readily as for one that crosses twice.
  *
  * @param segment the run to split
- * @param roofHeightAt the elevation surface's height at one front/back
- * position; return the floor (-1) for a pattern with no surface to pass under
+ * @param roofHeightAt the elevation surface's height at one (left/right,
+ * front/back) position; return the floor (-1) where the pattern has no surface.
+ * Both coordinates are passed because the dome needs both -- it is the one
+ * pattern whose height is not a function of front/back alone
  * @param samples positions tested along the segment, at least 2
  * @param into the split to append to
  */
@@ -149,7 +151,7 @@ inline void splitSegmentInto(const Segment& segment,
   // over it rather than flickering between the two lists.
   const auto kIsAbove = [&](const float t) {
     const Coordinates::Point4D kAt = pointAlong(segment, t);
-    return kAt.a[1] >= roofHeightAt(kAt.a[2]);
+    return kAt.a[1] >= roofHeightAt(kAt.a[0], kAt.a[2]);
   };
   const auto kEmit = [&](const float from, const float to, const bool above) {
     // A crossing landing on an end would otherwise emit an empty run. The
@@ -241,41 +243,61 @@ inline std::array<Segment, 2> leaderLines(const Coordinates::Point4D& source) {
 /**
  * @brief Split the connectors against an elevation surface.
  *
- * The two are NOT treated alike, because they do not meet the surface alike.
+ * The two are not always treated alike, because they do not always meet the
+ * surface alike.
  *
  * The BACK-EDGE connector varies in front/back, so the surface height beneath
- * it changes along its length and it genuinely passes under a roof -- from a
- * source on the near slope it runs over the crest. It goes through the same
- * walk the outline does, for the same reason.
+ * it changes along its length under EVERY pattern and it genuinely passes under
+ * a roof -- from a source on the near slope it runs over the crest. It always
+ * goes through the same walk the outline does.
  *
  * The RIGHT-EDGE connector holds the source's front/back position along its
- * whole length. Every pattern that clamps the source is a height field in
- * front/back ALONE, so the surface beneath that line is at one height the whole
- * way -- the source's own. The line is therefore COINCIDENT with the surface
- * rather than above or below it, and it is drawn on top unconditionally.
+ * whole length, so what happens beneath it depends on whether the surface
+ * varies with left/right at all:
  *
- * Classifying it by comparison instead is what made it flicker. A coincident
+ * - Tent, arch, and curve are height fields in front/back ALONE. The surface
+ *   beneath that line is therefore at one height the whole way -- the source's
+ *   own -- so the line is COINCIDENT with it rather than above or below it, and
+ *   `splitRightEdge` is false: it is placed on top.
+ * - The DOME is the one pattern whose height depends on left/right too, falling
+ *   away from the room's centre in both. The line is then genuinely above the
+ *   surface at some positions and under it at others -- from a source left of
+ *   centre it runs over the dome's crest, exactly as the back-edge connector
+ *   does from a source in front of it. `splitRightEdge` is true and the same
+ *   walk applies.
+ *
+ * Classifying a COINCIDENT line by comparison is what made it flicker, which is
+ * why the distinction is a parameter rather than something inferred here. That
  * line resolves on the tie, and the source's height reaches this code from
  * integer position parameters scaled by 1/50, so quantisation nudges it a
  * fraction either side of the surface it is nominally resting on: the same line
- * came back above at one position and below at the next, tinting and untinting
- * as the source moved. No epsilon fixes that honestly -- the comparison is
- * being asked a question the geometry does not pose.
+ * came back above at one position and below at the next. No epsilon fixes that
+ * honestly -- the comparison is being asked a question the geometry does not
+ * pose. Where the surface DOES vary beneath the line, the question is real and
+ * the walk answers it.
  *
  * @param source the source position in room-view NDC, w = 1
- * @param roofHeightAt the elevation surface's height at one front/back position
- * @param samplesPerLine positions tested along the back-edge connector, min 2
+ * @param roofHeightAt the surface height at one (left/right, front/back)
+ * position
+ * @param splitRightEdge whether the surface varies with left/right, so the
+ * right-edge connector must be split rather than placed on top
+ * @param samplesPerLine positions tested along each split connector, min 2
  * @return SplitOutline the runs under the surface and the runs over it
  */
 template <typename RoofHeightFn>
 inline SplitOutline splitLeaderLinesAtElevation(
     const Coordinates::Point4D& source, RoofHeightFn&& roofHeightAt,
-    const int samplesPerLine = 41) {
+    const bool splitRightEdge, const int samplesPerLine = 41) {
   SplitOutline split;
   const std::array<Segment, 2> kLeaders = leaderLines(source);
 
   splitSegmentInto(kLeaders[0], roofHeightAt, samplesPerLine, split);
-  split.above.push_back(kLeaders[1]);
+
+  if (splitRightEdge) {
+    splitSegmentInto(kLeaders[1], roofHeightAt, samplesPerLine, split);
+  } else {
+    split.above.push_back(kLeaders[1]);
+  }
 
   return split;
 }

@@ -68,7 +68,8 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   // split and drawn either side of the fill. Only the source marker is always
   // on top -- ElevationListener clamps it onto the surface, so it is never
   // behind the roof.
-  float elevationHeightAt(float frontBack) const;
+  float elevationHeightAt(float leftRight, float frontBack) const;
+  bool elevationVariesAcrossLeftRight() const;
   void paintIndicatorRuns(const Coordinates::WindowData& window,
                           const std::vector<HeightIndicator::Segment>& runs,
                           float thickness, juce::Graphics& g);
