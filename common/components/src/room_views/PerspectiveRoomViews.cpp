@@ -199,11 +199,11 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
     const auto kRoofAt = [this](const float leftRight, const float frontBack) {
       return elevationHeightAt(leftRight, frontBack);
     };
-    outline = HeightIndicator::splitAtElevation(
-        transformedTracks_[0].ndcPos.a[1], kRoofAt);
+    const Coordinates::Point4D kIndicatorPos =
+        indicatorPosition(transformedTracks_[0].ndcPos);
+    outline = HeightIndicator::splitAtElevation(kIndicatorPos.a[1], kRoofAt);
     connectors = HeightIndicator::splitLeaderLinesAtElevation(
-        transformedTracks_[0].ndcPos, kRoofAt,
-        elevationVariesAcrossLeftRight());
+        kIndicatorPos, kRoofAt, elevationVariesAcrossLeftRight());
   }
 
   paintIndicatorRuns(wData, outline.below, kOutlineThickness, g);
@@ -280,6 +280,54 @@ float AudioElementPluginTopView::elevationHeightAt(
       // kNone draws nothing at all, so there is nothing to pass under and every
       // run comes back in `above`.
       return -1.f;
+  }
+}
+
+Coordinates::Point4D AudioElementPluginTopView::indicatorPosition(
+    const Coordinates::Point4D& sourceNdc) const {
+  // Where a pattern CLAMPS the source, the source's true height is the surface
+  // height at its position -- ElevationListener computes exactly that and
+  // writes it back through setZPosition. What comes back is a lossy round trip:
+  // position parameters are integers over +/-kPositionExtent
+  // (Coordinates.h), so the height returns quantised to steps of 1/50 in NDC.
+  //
+  // Comparing that quantised height against the exact surface is ILL
+  // CONDITIONED near a crest, and the dome is where it shows. Its apex is
+  // nearly flat -- height is 1 - r^2 to first order -- so a height error of d
+  // displaces the crossing to r = sqrt(d): one parameter step, 0.02, moves it
+  // 0.14, a seventh of the way across the room. That is a line dimming for a
+  // long stretch beside a source that visibly rests ON the surface, and on the
+  // side of the crest where the geometry admits no crossing at all. Observed at
+  // parameter x = -2 (a long spurious run) and x = +1 (a short one where there
+  // should be none); exact at the origin, where 50 quantises without loss.
+  //
+  // So take the height from the surface rather than from the parameter. The
+  // comparison then reads surface against surface and the quantisation drops
+  // out of it: a source right of the dome's crest yields no crossing at all,
+  // and one left of it crosses at exactly the mirrored position. The drawn
+  // height moves by at most half a parameter step, which the source marker
+  // covers.
+  if (!elevationClampsTheSource()) {
+    return sourceNdc;
+  }
+  Coordinates::Point4D snapped = sourceNdc;
+  snapped.a[1] = elevationHeightAt(sourceNdc.a[0], sourceNdc.a[2]);
+  return snapped;
+}
+
+bool AudioElementPluginTopView::elevationClampsTheSource() const {
+  // The four patterns ElevationListener recomputes the height for. kFlat and
+  // kNone leave the z dial live, so under those the source's height is the
+  // operator's own value and the parameter is the only thing that knows it --
+  // there is no surface to read it back from.
+  switch (currentElevation_) {
+    case AudioElementSpatialLayout::Elevation::kTent:
+    case AudioElementSpatialLayout::Elevation::kArch:
+    case AudioElementSpatialLayout::Elevation::kDome:
+    case AudioElementSpatialLayout::Elevation::kCurve:
+      return true;
+    default:
+      return false;
   }
 }
 

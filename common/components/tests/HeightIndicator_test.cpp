@@ -655,3 +655,85 @@ TEST(HeightIndicatorTest, domeHeightDependsOnBothCoordinates) {
   EXPECT_NEAR(domeRoofAt(1.f, 0.f), -1.f, kTolerance);
   EXPECT_NEAR(domeRoofAt(0.8f, 0.8f), -1.f, kTolerance);
 }
+
+// The ill-conditioning that a quantised source height causes near the dome's
+// apex, and why the view reads the height off the SURFACE instead. Position
+// parameters are integers over +/-kPositionExtent, so a height arriving through
+// them is quantised to steps of 1/50 in NDC. The dome's crown is nearly flat --
+// height is 1 - r^2 to first order -- so an error of d moves the crossing to
+// sqrt(d), and one step becomes a seventh of the room.
+
+// A source right of the dome's crest admits no crossing: the surface only falls
+// away toward the right bound. Taking its height from the surface is what makes
+// that fall out, with no sign test anywhere.
+TEST(HeightIndicatorTest, domeRightOfCrestHasNoCrossingAtTheExactHeight) {
+  for (const float kLeftRight : {0.02f, 0.1f, 0.4f, 0.8f}) {
+    const Coordinates::Point4D kSource = {
+        kLeftRight, domeRoofAt(kLeftRight, 0.f), 0.f, 1.f};
+    const HeightIndicator::SplitOutline kSplit =
+        HeightIndicator::splitLeaderLinesAtElevation(kSource, domeRoofAt,
+                                                     /*splitRightEdge=*/true);
+
+    EXPECT_TRUE(kSplit.below.empty()) << "left/right " << kLeftRight;
+  }
+}
+
+// Left of the crest it crosses at exactly the mirrored position, at every
+// distance from the centre -- the property a quantised height destroys.
+TEST(HeightIndicatorTest, domeLeftOfCrestCrossesAtTheMirroredPosition) {
+  for (const float kLeftRight : {-0.04f, -0.2f, -0.6f}) {
+    const Coordinates::Point4D kSource = {
+        kLeftRight, domeRoofAt(kLeftRight, 0.f), 0.f, 1.f};
+    const HeightIndicator::SplitOutline kSplit =
+        HeightIndicator::splitLeaderLinesAtElevation(kSource, domeRoofAt,
+                                                     /*splitRightEdge=*/true);
+
+    ASSERT_EQ(kSplit.below.size(), 1u) << "left/right " << kLeftRight;
+    EXPECT_NEAR(kSplit.below[0].end.a[0], -kLeftRight, 1e-3f);
+  }
+}
+
+// The failure this guards, stated as the difference it makes. One parameter
+// step of height error at parameter x = +1 puts the line under the dome for
+// roughly a seventh of the room, on the side that admits no crossing; reading
+// the height off the surface removes the run entirely.
+TEST(HeightIndicatorTest, domeQuantisedHeightManufacturesASpuriousCrossing) {
+  // Parameter x = +1 of kPositionExtent = 50.
+  const float kLeftRight = 1.f / 50.f;
+  const float kExactHeight = domeRoofAt(kLeftRight, 0.f);
+  // The same height after a round trip through one integer parameter step.
+  const float kQuantisedHeight = std::floor(kExactHeight * 50.f) / 50.f;
+  ASSERT_LT(kQuantisedHeight, kExactHeight);
+
+  const HeightIndicator::SplitOutline kQuantised =
+      HeightIndicator::splitLeaderLinesAtElevation(
+          {kLeftRight, kQuantisedHeight, 0.f, 1.f}, domeRoofAt,
+          /*splitRightEdge=*/true);
+  const HeightIndicator::SplitOutline kExact =
+      HeightIndicator::splitLeaderLinesAtElevation(
+          {kLeftRight, kExactHeight, 0.f, 1.f}, domeRoofAt,
+          /*splitRightEdge=*/true);
+
+  // The quantised height sits BELOW the surface at the source, so both
+  // connectors start submerged -- the error is not confined to the one that
+  // travels the flattest part of the crown.
+  EXPECT_EQ(kQuantised.below.size(), 2u);
+
+  // The right-edge run is the one that travels in left/right. It resurfaces
+  // where the dome falls to the quantised height, sqrt(1 - ((h+1)/2)^2), which
+  // for one parameter step is about 0.141 -- a seventh of the room, from a
+  // source 0.02 off centre.
+  bool sawTheRightEdgeRun = false;
+  for (const HeightIndicator::Segment& run : kQuantised.below) {
+    if (std::abs(run.end.a[0] - run.start.a[0]) <= kTolerance) {
+      continue;
+    }
+    sawTheRightEdgeRun = true;
+    EXPECT_GT(run.end.a[0], 0.1f);
+  }
+  EXPECT_TRUE(sawTheRightEdgeRun);
+
+  // Reading the height off the surface removes every submerged run: this source
+  // is right of the crest, where the geometry admits no crossing at all.
+  EXPECT_TRUE(kExact.below.empty());
+}

@@ -69,6 +69,9 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   // on top -- ElevationListener clamps it onto the surface, so it is never
   // behind the roof.
   float elevationHeightAt(float leftRight, float frontBack) const;
+  Coordinates::Point4D indicatorPosition(
+      const Coordinates::Point4D& sourceNdc) const;
+  bool elevationClampsTheSource() const;
   bool elevationVariesAcrossLeftRight() const;
   void paintIndicatorRuns(const Coordinates::WindowData& window,
                           const std::vector<HeightIndicator::Segment>& runs,
