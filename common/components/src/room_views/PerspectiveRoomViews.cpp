@@ -41,9 +41,13 @@ juce::Colour elevationFacingSurface() {
   return EclipsaColours::roomviewTranslucentWall.brighter();
 }
 
-// The height indicator's two connectors, a pixel wide against the 2.0f the
-// outline and the room share. Prefixed for the same reason the two surface
-// helpers above are: the anonymous namespace spans the whole unity build.
+// The height indicator's line weights: the outline at the 2.0f it shares with
+// the room, the two connectors a pixel wide against it. Both are passed
+// explicitly now that runs are drawn either side of the elevation surface, so
+// neither relies on drawLine's default. Prefixed for the same reason the two
+// surface helpers above are: the anonymous namespace spans the whole unity
+// build.
+constexpr float kOutlineThickness = 2.f;
 constexpr float kHeightIndicatorConnectorThickness = 1.f;
 
 }  // namespace
@@ -171,17 +175,37 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
 
   PerspectiveRoomView::paint(g);
 
-  // The outline is the one thing that can pass UNDER the elevation surface, so
-  // it is split and drawn either side of the fill. Without this it was drawn
-  // whole and over the surface, which left it at full strength where it was
-  // actually behind a translucent roof -- so nothing distinguished a side in
-  // front of the roof from a side behind it.
-  const HeightIndicator::SplitOutline kOutline =
-      transformedTracks_.empty()
-          ? HeightIndicator::SplitOutline{}
-          : splitOutlineAtElevation(transformedTracks_[0].ndcPos.a[1]);
+  // The outline and the connectors both pass UNDER the elevation surface, so
+  // both are split and drawn either side of the fill. Drawn whole and over the
+  // surface they stayed at full strength where they were actually behind a
+  // translucent roof, and nothing distinguished a run in front of the roof from
+  // one behind it.
+  //
+  // The height both are built at is the source's own, taken from the z position
+  // parameter through Coordinates::toRoomNdc (applied in
+  // PerspectiveRoomView::transformDynamicVertices, the one place that scaling
+  // is expressed). ElevationListener recomputes z from x and y and writes it
+  // back through setZPosition for Tent, Arch, Dome, and Curve, so reading the
+  // parameter is correct under every elevation pattern and this view derives no
+  // height of its own. Passing ndcPos rather than the already-projected pos
+  // keeps both tied to the geometry the outline was built from.
+  HeightIndicator::SplitOutline outline, connectors;
+  if (!transformedTracks_.empty()) {
+    // One height function, two splits. The outline and a connector meet at a
+    // point, so they have to agree about which side of the roof that point is
+    // on; a second copy of this switch is how they would stop agreeing.
+    const auto kRoofAt = [this](const float frontBack) {
+      return elevationHeightAt(frontBack);
+    };
+    outline = HeightIndicator::splitAtElevation(
+        transformedTracks_[0].ndcPos.a[1], kRoofAt);
+    connectors = HeightIndicator::splitLeaderLinesAtElevation(
+        transformedTracks_[0].ndcPos, kRoofAt);
+  }
 
-  paintOutlineRuns(wData, kOutline.below, g);
+  paintIndicatorRuns(wData, outline.below, kOutlineThickness, g);
+  paintIndicatorRuns(wData, connectors.below,
+                     kHeightIndicatorConnectorThickness, g);
 
   switch (currentElevation_) {
     case AudioElementSpatialLayout::Elevation::kFlat:
@@ -203,100 +227,57 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
       break;
   }
 
-  paintOutlineRuns(wData, kOutline.above, g);
+  paintIndicatorRuns(wData, outline.above, kOutlineThickness, g);
+  paintIndicatorRuns(wData, connectors.above,
+                     kHeightIndicatorConnectorThickness, g);
 
   if (!transformedTracks_.empty()) {
-    // ElevationListener clamps the source onto the surface for every pattern
-    // that has one, so neither the marker nor the two connectors tying it to
-    // the outline is ever behind the roof. Both stay on top, undimmed: tinting
-    // them would suggest a depth relationship that cannot occur.
-    paintHeightIndicatorConnectors(wData, transformedTracks_[0], g);
+    // The marker alone is always on top: ElevationListener clamps the source
+    // onto the surface for every pattern that has one, so it is never behind
+    // the roof and tinting it would suggest a depth relationship that cannot
+    // occur.
     drawTrack(transformedTracks_[0], g);
   }
 }
 
-HeightIndicator::SplitOutline
-AudioElementPluginTopView::splitOutlineAtElevation(const float height) const {
-  // Each pattern supplies its surface height at one front/back position. The
-  // three curved patterns are height fields in front/back alone, which is why
-  // one float in and one float out covers all of them.
+float AudioElementPluginTopView::elevationHeightAt(
+    const float frontBack) const {
+  // Each pattern's surface height at one front/back position. The three curved
+  // patterns are height fields in front/back alone, which is why one float in
+  // and one float out covers all of them.
   switch (currentElevation_) {
     case AudioElementSpatialLayout::Elevation::kFlat:
-      return HeightIndicator::splitAtElevation(
-          height, [flat = currentFlatHeight_](const float) { return flat; });
+      return currentFlatHeight_;
     case AudioElementSpatialLayout::Elevation::kTent:
-      return HeightIndicator::splitAtElevation(
-          height, [](const float frontBack) {
-            return ElevationListener::getTentElevationPt({-1.f, frontBack, 0.f})
-                .a[1];
-          });
+      return ElevationListener::getTentElevationPt({-1.f, frontBack, 0.f}).a[1];
     case AudioElementSpatialLayout::Elevation::kArch:
-      return HeightIndicator::splitAtElevation(
-          height, [](const float frontBack) {
-            return ElevationListener::getArchElevationPt({-1.f, frontBack, 0.f})
-                .a[1];
-          });
+      return ElevationListener::getArchElevationPt({-1.f, frontBack, 0.f}).a[1];
     case AudioElementSpatialLayout::Elevation::kCurve:
       // Sampled un-negated, on paintCurveElevation's sign convention -- the
       // value the listener passes IS the NDC front/back coordinate.
-      return HeightIndicator::splitAtElevation(
-          height, [](const float frontBack) {
-            return ElevationListener::getCurveElevationPt(
-                       {-1.f, frontBack, 0.f})
-                .a[1];
-          });
+      return ElevationListener::getCurveElevationPt({-1.f, frontBack, 0.f})
+          .a[1];
     case AudioElementSpatialLayout::Elevation::kDome:
     default:
-      // Dome and kNone alike: the floor sentinel, and it is literal rather
-      // than a convenience. paintDomeElevation samples the UNIT circle, where
-      // the sphere equation returns -1, so the dome draws as a floor-level
-      // disc marking the clamp bound rather than as a surface; kNone draws
-      // nothing at all. Either way there is nothing for the outline to pass
-      // under, and every run comes back in `above`.
-      return HeightIndicator::splitAtElevation(
-          height, [](const float) { return -1.f; });
+      // Dome and kNone alike: the floor, and it is literal rather than a
+      // convenience. paintDomeElevation samples the UNIT circle, where the
+      // sphere equation returns -1, so the dome draws as a floor-level disc
+      // marking the clamp bound rather than as a surface; kNone draws nothing
+      // at all. Either way there is nothing to pass under, and every run comes
+      // back in `above`.
+      return -1.f;
   }
 }
 
-void AudioElementPluginTopView::paintOutlineRuns(
+void AudioElementPluginTopView::paintIndicatorRuns(
     const Coordinates::WindowData& window,
-    const std::vector<HeightIndicator::Segment>& runs, juce::Graphics& g) {
+    const std::vector<HeightIndicator::Segment>& runs, const float thickness,
+    juce::Graphics& g) {
   g.setColour(EclipsaColours::controlBlue);
   for (const HeightIndicator::Segment& run : runs) {
     const std::array<Coordinates::Point2D, 2> kEnds =
         HeightIndicator::projectSegment(kTransformMat_, window, run);
-    drawLine(kEnds[0], kEnds[1], g);
-  }
-}
-
-void AudioElementPluginTopView::paintHeightIndicatorConnectors(
-    const Coordinates::WindowData& window, const DrawableTrack& track,
-    juce::Graphics& g) {
-  // The height the indicator is drawn at is the source's own, taken from the
-  // z position parameter through Coordinates::toRoomNdc (applied in
-  // PerspectiveRoomView::transformDynamicVertices, the one place that scaling
-  // is expressed). ElevationListener recomputes z from x and y and writes it
-  // back through setZPosition for Tent, Arch, Dome, and Curve, so reading the
-  // parameter is correct under every elevation pattern and this view derives
-  // no height of its own.
-  g.setColour(EclipsaColours::controlBlue);
-
-  // Both endpoints of each connector are 3D anchors at the source's height, so
-  // the near end lands on the marker and the far end on the outline under the
-  // perspective divide and at any window size. Projecting the source here
-  // rather than reusing track.pos keeps the connector tied to the geometry the
-  // outline was built from, and the two agree by construction: pos is that
-  // same NDC point through the same transform.
-  //
-  // The connectors are drawn a pixel wide against the outline's 2.0f. They
-  // carry no geometry of their own -- they only tie the marker to the two
-  // edges -- so the lighter weight keeps them subordinate to the outline and
-  // the room, which is what manual testing in a DAW called for.
-  for (const HeightIndicator::Segment& leader :
-       HeightIndicator::leaderLines(track.ndcPos)) {
-    const std::array<Coordinates::Point2D, 2> kEnds =
-        HeightIndicator::projectSegment(kTransformMat_, window, leader);
-    drawLine(kEnds[0], kEnds[1], g, kHeightIndicatorConnectorThickness);
+    drawLine(kEnds[0], kEnds[1], g, thickness);
   }
 }
 

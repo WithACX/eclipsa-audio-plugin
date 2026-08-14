@@ -64,16 +64,14 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   }
 
  private:
-  // The outline straddles the elevation surface, so its two halves are drawn
-  // either side of the fill; the connectors and the source marker are never
-  // under it and stay on top.
-  HeightIndicator::SplitOutline splitOutlineAtElevation(float height) const;
-  void paintOutlineRuns(const Coordinates::WindowData& window,
-                        const std::vector<HeightIndicator::Segment>& runs,
-                        juce::Graphics& g);
-  void paintHeightIndicatorConnectors(const Coordinates::WindowData& window,
-                                      const DrawableTrack& track,
-                                      juce::Graphics& g);
+  // The outline and both connectors straddle the elevation surface, so each is
+  // split and drawn either side of the fill. Only the source marker is always
+  // on top -- ElevationListener clamps it onto the surface, so it is never
+  // behind the roof.
+  float elevationHeightAt(float frontBack) const;
+  void paintIndicatorRuns(const Coordinates::WindowData& window,
+                          const std::vector<HeightIndicator::Segment>& runs,
+                          float thickness, juce::Graphics& g);
   void paintFlatElevation(const Coordinates::WindowData& window,
                           juce::Graphics& g);
   void paintTentElevation(const Coordinates::WindowData& window,

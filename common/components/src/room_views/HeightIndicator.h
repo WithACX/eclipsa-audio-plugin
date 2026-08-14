@@ -69,10 +69,14 @@ inline std::array<Segment, 4> crossSectionOutline(const float height) {
           Segment{kBackRight, kBackLeft}, Segment{kBackLeft, kFrontLeft}};
 }
 
-// The outline sides, split by which side of the elevation surface each run
-// lies on. A painter's algorithm has no depth buffer, so the two lists are the
+// Runs of the indicator, split by which side of the elevation surface each one
+// lies on. A painter's algorithm has no depth buffer, so the two lists ARE the
 // draw order: `below` goes down before the surface is filled and is tinted by
 // it, `above` goes down after and stays full strength.
+//
+// Named for the outline it was written for, and it now carries the connectors
+// too -- both are split by the same walk, so one type keeps the caller from
+// having to pair a different result shape with each.
 struct SplitOutline {
   std::vector<Segment> below;
   std::vector<Segment> above;
@@ -81,8 +85,10 @@ struct SplitOutline {
 /**
  * @brief A point partway along a segment, at parameter t in [0, 1].
  *
- * Height is constant along every outline side, so it survives the interpolation
- * unchanged; only the left/right and front/back coordinates move.
+ * Height is constant along every outline side and along both connectors, so it
+ * survives the interpolation unchanged; only the left/right and front/back
+ * coordinates move. The interpolation covers all three components anyway, so
+ * the split does not depend on that remaining true.
  *
  * @param segment the segment to walk
  * @param t the parameter, 0 at start and 1 at end
@@ -98,29 +104,102 @@ inline Coordinates::Point4D pointAlong(const Segment& segment, const float t) {
 }
 
 /**
- * @brief Split the cross-section outline where it crosses an elevation surface.
+ * @brief Split one segment where it crosses an elevation surface, appending its
+ * runs to a split.
+ *
+ * The single walk behind every part of the indicator. The outline's sides and
+ * the two connectors are all straight runs at the source's height, so they
+ * cross a surface by the same rule and must be split by the same code: two
+ * walks would be two places for the crossing rule to drift, and the outline and
+ * a connector meeting at a point would eventually disagree about which side of
+ * the roof that point is on.
  *
  * The three curved patterns are ruled surfaces sampled along the room's left
  * and right edges, so their boundary curves lie in the planes x = -1 and x = +1
  * -- the very planes the outline's left and right sides lie in. The crossing is
  * therefore a genuine incidence between two curves sharing a plane, and a
  * projective transform preserves incidence: the split point lands exactly where
- * the drawn surface edge meets the drawn outline, at any window size. Nothing
+ * the drawn surface edge meets the drawn geometry, at any window size. Nothing
  * here approximates a depth test.
- *
- * The front and back sides are handled by the same walk rather than
- * special-cased. They sit at front/back = -/+1 where all three patterns are at
- * or near the floor, so in practice they come back whole in `above` -- but that
- * is an outcome of the geometry, not an assumption baked into the split.
  *
  * Sampling rather than solving each pattern in closed form is deliberate. It
  * matches the surface actually DRAWN, which is faceted at the painter's own
  * sample count, and it stays correct for a curve that crosses once (the
  * logarithmic pattern is monotonic) as readily as for one that crosses twice.
  *
- * @param height the source's height in room-view NDC (-1..1)
+ * @param segment the run to split
  * @param roofHeightAt the elevation surface's height at one front/back
  * position; return the floor (-1) for a pattern with no surface to pass under
+ * @param samples positions tested along the segment, at least 2
+ * @param into the split to append to
+ */
+template <typename RoofHeightFn>
+inline void splitSegmentInto(const Segment& segment,
+                             RoofHeightFn&& roofHeightAt, const int samples,
+                             SplitOutline& into) {
+  const int kSamples = std::max(2, samples);
+
+  // A point is ABOVE when it is at or over the surface. Height is read from the
+  // interpolated point rather than taken as a parameter, so a segment whose
+  // ends sit at different heights would still be classified correctly -- none
+  // does today, and the walk does not depend on that staying true.
+  //
+  // Ties resolve to above so a source resting exactly on the surface -- which
+  // is where ElevationListener puts it for every pattern that clamps -- draws
+  // over it rather than flickering between the two lists.
+  const auto kIsAbove = [&](const float t) {
+    const Coordinates::Point4D kAt = pointAlong(segment, t);
+    return kAt.a[1] >= roofHeightAt(kAt.a[2]);
+  };
+  const auto kEmit = [&](const float from, const float to, const bool above) {
+    // A crossing landing on an end would otherwise emit an empty run. The
+    // connector starting ON the surface is exactly that case.
+    if (to - from <= 1e-6f) {
+      return;
+    }
+    (above ? into.above : into.below)
+        .push_back(Segment{pointAlong(segment, from), pointAlong(segment, to)});
+  };
+
+  float runStart = 0.f;
+  bool runAbove = kIsAbove(0.f);
+  for (int i = 1; i < kSamples; ++i) {
+    const float kPrev = static_cast<float>(i - 1) / (kSamples - 1);
+    const float kHere = static_cast<float>(i) / (kSamples - 1);
+    if (kIsAbove(kHere) == runAbove) {
+      continue;
+    }
+    // Bisect the bracketing interval rather than interpolating the height
+    // difference: the tent's ridge is a crease, so that difference is not
+    // linear across a sample step containing it.
+    float lo = kPrev, hi = kHere;
+    for (int step = 0; step < 20; ++step) {
+      const float kMid = 0.5f * (lo + hi);
+      if (kIsAbove(kMid) == runAbove) {
+        lo = kMid;
+      } else {
+        hi = kMid;
+      }
+    }
+    const float kCrossing = 0.5f * (lo + hi);
+    kEmit(runStart, kCrossing, runAbove);
+    runStart = kCrossing;
+    runAbove = !runAbove;
+  }
+  kEmit(runStart, 1.f, runAbove);
+}
+
+/**
+ * @brief Split the cross-section outline where it crosses an elevation surface.
+ *
+ * The front and back sides go through the same walk as the other two rather
+ * than being special-cased. They sit at front/back = -/+1 where all three
+ * patterns are at or near the floor, so in practice they come back whole in
+ * `above` -- but that is an outcome of the geometry, not an assumption baked
+ * into the split.
+ *
+ * @param height the source's height in room-view NDC (-1..1)
+ * @param roofHeightAt the elevation surface's height at one front/back position
  * @param samplesPerSide positions tested along each side, at least 2
  * @return SplitOutline the runs under the surface and the runs over it
  */
@@ -129,51 +208,8 @@ inline SplitOutline splitAtElevation(const float height,
                                      RoofHeightFn&& roofHeightAt,
                                      const int samplesPerSide = 41) {
   SplitOutline split;
-  const int kSamples = std::max(2, samplesPerSide);
-
   for (const Segment& side : crossSectionOutline(height)) {
-    // A point is ABOVE when the outline is at or over the surface. Ties resolve
-    // to above so a source resting exactly on the surface -- which is where
-    // ElevationListener puts it for every pattern that clamps -- draws over it
-    // rather than flickering between the two lists.
-    const auto kIsAbove = [&](const float t) {
-      return height >= roofHeightAt(pointAlong(side, t).a[2]);
-    };
-    const auto kEmit = [&](const float from, const float to, const bool above) {
-      // A crossing landing on a sample would otherwise emit an empty run.
-      if (to - from <= 1e-6f) {
-        return;
-      }
-      (above ? split.above : split.below)
-          .push_back(Segment{pointAlong(side, from), pointAlong(side, to)});
-    };
-
-    float runStart = 0.f;
-    bool runAbove = kIsAbove(0.f);
-    for (int i = 1; i < kSamples; ++i) {
-      const float kPrev = static_cast<float>(i - 1) / (kSamples - 1);
-      const float kHere = static_cast<float>(i) / (kSamples - 1);
-      if (kIsAbove(kHere) == runAbove) {
-        continue;
-      }
-      // Bisect the bracketing interval rather than interpolating the height
-      // difference: the tent's ridge is a crease, so that difference is not
-      // linear across a sample step containing it.
-      float lo = kPrev, hi = kHere;
-      for (int step = 0; step < 20; ++step) {
-        const float kMid = 0.5f * (lo + hi);
-        if (kIsAbove(kMid) == runAbove) {
-          lo = kMid;
-        } else {
-          hi = kMid;
-        }
-      }
-      const float kCrossing = 0.5f * (lo + hi);
-      kEmit(runStart, kCrossing, runAbove);
-      runStart = kCrossing;
-      runAbove = !runAbove;
-    }
-    kEmit(runStart, 1.f, runAbove);
+    splitSegmentInto(side, roofHeightAt, samplesPerSide, split);
   }
 
   return split;
@@ -200,6 +236,36 @@ inline std::array<Segment, 2> leaderLines(const Coordinates::Point4D& source) {
   const Coordinates::Point4D kToRightEdge = {1.f, kHeight, source.a[2], 1.f};
 
   return {Segment{source, kToBackEdge}, Segment{source, kToRightEdge}};
+}
+
+/**
+ * @brief Split the two connectors where they cross an elevation surface.
+ *
+ * The same walk the outline goes through, for the same reason: a connector runs
+ * at the source's height from the source to a room bound, so it passes under a
+ * roof exactly as an outline side does. Leaving them whole and on top read as
+ * an inconsistency the moment the outline beside them was split.
+ *
+ * Only the back-edge connector can actually cross. The right-edge connector
+ * holds the source's front/back position along its whole length, and all three
+ * curved patterns are height fields in front/back alone, so the surface height
+ * under it never changes -- it is wholly above or wholly below. That falls out
+ * of the walk rather than being special-cased.
+ *
+ * @param source the source position in room-view NDC, w = 1
+ * @param roofHeightAt the elevation surface's height at one front/back position
+ * @param samplesPerLine positions tested along each connector, at least 2
+ * @return SplitOutline the runs under the surface and the runs over it
+ */
+template <typename RoofHeightFn>
+inline SplitOutline splitLeaderLinesAtElevation(
+    const Coordinates::Point4D& source, RoofHeightFn&& roofHeightAt,
+    const int samplesPerLine = 41) {
+  SplitOutline split;
+  for (const Segment& leader : leaderLines(source)) {
+    splitSegmentInto(leader, roofHeightAt, samplesPerLine, split);
+  }
+  return split;
 }
 
 /**

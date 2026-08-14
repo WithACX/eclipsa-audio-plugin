@@ -370,3 +370,97 @@ TEST(HeightIndicatorTest, splitRunsKeepTheOutlineHeight) {
     EXPECT_NEAR(run.end.a[1], kHeight, kTolerance);
   }
 }
+
+// The connectors go through the same split as the outline. Manual testing found
+// that leaving them whole and on top read as an inconsistency the moment the
+// outline beside them was cut, so these pin the cases that differ from the
+// outline's: only one of the two can ever cross, and where the source rests on
+// the surface the crossing sits on an endpoint.
+
+// A surface everywhere below leaves both connectors whole and over it -- the
+// dome and kNone case, and the check that the split adds no spurious cut.
+TEST(HeightIndicatorTest, leaderSplitLeavesBothWholeAboveAFloorLevelSurface) {
+  const Coordinates::Point4D kSource = {0.2f, 0.f, -0.5f, 1.f};
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitLeaderLinesAtElevation(
+          kSource, [](const float) { return -1.f; });
+
+  EXPECT_TRUE(kSplit.below.empty());
+  EXPECT_EQ(kSplit.above.size(), 2u);
+}
+
+// With the source on the tent's FRONT slope, the back-edge connector runs over
+// the ridge and dips under it; the right-edge connector holds the source's
+// front/back position, so the surface under it never changes and it stays
+// whole. One run below, two above.
+TEST(HeightIndicatorTest, leaderSplitCutsOnlyTheBackEdgeConnector) {
+  // The source rests ON the tent at front/back -0.5, where its height is 0.
+  const Coordinates::Point4D kSource = {0.2f, 0.f, -0.5f, 1.f};
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt);
+
+  EXPECT_EQ(kSplit.below.size(), 1u);
+  EXPECT_EQ(kSplit.above.size(), 2u);
+
+  // The submerged run starts at the source and surfaces where the tent falls
+  // back to the source's height, mirrored about the ridge at front/back +0.5.
+  EXPECT_NEAR(kSplit.below[0].start.a[2], -0.5f, 1e-3f);
+  EXPECT_NEAR(kSplit.below[0].end.a[2], 0.5f, 1e-3f);
+}
+
+// With the source on the tent's BACK slope the surface only falls away between
+// it and the back edge, so nothing is submerged and both connectors stay whole.
+// This is the half of the geometry the front-slope case cannot show.
+TEST(HeightIndicatorTest, leaderSplitLeavesTheBackSlopeUncut) {
+  const Coordinates::Point4D kSource = {0.2f, 0.f, 0.5f, 1.f};
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt);
+
+  EXPECT_TRUE(kSplit.below.empty());
+  EXPECT_EQ(kSplit.above.size(), 2u);
+}
+
+// A connector starting exactly ON the surface -- which is where
+// ElevationListener puts every clamped source -- must not emit a zero-length
+// run at the source before dipping under. The epsilon in the emit guard is what
+// this asserts, and its absence would put a degenerate segment into the list.
+TEST(HeightIndicatorTest, leaderSplitEmitsNoZeroLengthRunAtTheSource) {
+  const Coordinates::Point4D kSource = {0.2f, 0.f, -0.5f, 1.f};
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt);
+
+  for (const HeightIndicator::Segment& run : kSplit.below) {
+    EXPECT_GT(segmentLength(run), 1e-4f);
+  }
+  for (const HeightIndicator::Segment& run : kSplit.above) {
+    EXPECT_GT(segmentLength(run), 1e-4f);
+  }
+}
+
+// Every connector run keeps the source's height and starts or ends where the
+// whole connector did, so splitting never detaches one from the marker or from
+// the outline edge it meets.
+TEST(HeightIndicatorTest, leaderSplitRunsKeepTheSourceHeightAndSpan) {
+  const Coordinates::Point4D kSource = {0.2f, 0.f, -0.5f, 1.f};
+  const std::array<HeightIndicator::Segment, 2> kWhole =
+      HeightIndicator::leaderLines(kSource);
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt);
+
+  float total = 0.f;
+  for (const HeightIndicator::Segment& run : kSplit.below) {
+    EXPECT_NEAR(run.start.a[1], kSource.a[1], kTolerance);
+    EXPECT_NEAR(run.end.a[1], kSource.a[1], kTolerance);
+    total += segmentLength(run);
+  }
+  for (const HeightIndicator::Segment& run : kSplit.above) {
+    EXPECT_NEAR(run.start.a[1], kSource.a[1], kTolerance);
+    EXPECT_NEAR(run.end.a[1], kSource.a[1], kTolerance);
+    total += segmentLength(run);
+  }
+
+  // The runs cover both connectors exactly -- nothing lost, nothing counted
+  // twice, whatever the split did in between.
+  EXPECT_NEAR(total, segmentLength(kWhole[0]) + segmentLength(kWhole[1]),
+              kTolerance);
+}
