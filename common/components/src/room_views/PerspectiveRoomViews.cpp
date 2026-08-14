@@ -41,6 +41,11 @@ juce::Colour elevationFacingSurface() {
   return EclipsaColours::roomviewTranslucentWall.brighter();
 }
 
+// The height indicator's two connectors, a pixel wide against the 2.0f the
+// outline and the room share. Prefixed for the same reason the two surface
+// helpers above are: the anonymous namespace spans the whole unity build.
+constexpr float kHeightIndicatorConnectorThickness = 1.f;
+
 }  // namespace
 
 TopView::TopView(const SpeakerMonitorData& monitorData,
@@ -220,11 +225,16 @@ void AudioElementPluginTopView::paintHeightIndicator(
   // rather than reusing track.pos keeps the connector tied to the geometry the
   // outline was built from, and the two agree by construction: pos is that
   // same NDC point through the same transform.
+  //
+  // The connectors are drawn a pixel wide against the outline's 2.0f. They
+  // carry no geometry of their own -- they only tie the marker to the two
+  // edges -- so the lighter weight keeps them subordinate to the outline and
+  // the room, which is what manual testing in a DAW called for.
   for (const HeightIndicator::Segment& leader :
        HeightIndicator::leaderLines(track.ndcPos)) {
     const std::array<Coordinates::Point2D, 2> kEnds =
         HeightIndicator::projectSegment(kTransformMat_, window, leader);
-    drawLine(kEnds[0], kEnds[1], g);
+    drawLine(kEnds[0], kEnds[1], g, kHeightIndicatorConnectorThickness);
   }
 }
 
