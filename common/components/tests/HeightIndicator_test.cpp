@@ -1,0 +1,221 @@
+// Copyright 2025 Google LLC
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// The geometry behind the top-down panner's height indicator. Two classes of
+// mistake here are silent in the plugin and loud in these tests: an anchor
+// placed off the room bounds (the outline stops resting on the room's sides),
+// and a connector endpoint that does not share the outline's height (it
+// detaches from the outline as soon as the perspective divide scales the two
+// differently).
+//
+// The perspective properties are asserted against the REAL top-view transform
+// rather than an identity one, because they are properties OF that transform:
+// its w is 5 - height, so the projection expands with height. Everything that
+// only concerns anchor placement is asserted on the anchors directly, where the
+// expected values are exact.
+
+// Pull in the umbrella header first: several components/src headers include
+// components.h themselves and only resolve correctly once the umbrella has
+// fully loaded once. See the same note in Coordinates_test.cpp.
+// clang-format off
+#include <components/components.h>
+
+#include "components/src/room_views/HeightIndicator.h"
+// clang-format on
+
+#include <gtest/gtest.h>
+
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstddef>
+
+namespace {
+constexpr float kTolerance = 1e-4f;
+
+// A 200x100 window, matching the shape paint() builds from the component
+// bounds, and a second one of a different aspect for the resize checks.
+const Coordinates::WindowData kWindow = {.leftCornerX = 0.f,
+                                         .bottomCornerY = 100.f,
+                                         .width = 200.f,
+                                         .height = 100.f};
+const Coordinates::WindowData kResizedWindow = {.leftCornerX = 0.f,
+                                                .bottomCornerY = 640.f,
+                                                .width = 480.f,
+                                                .height = 640.f};
+
+Coordinates::Mat4 topView() { return Coordinates::getTopViewTransform(); }
+
+// The projected width of the cross-section outline, taken across its front
+// edge -- the quantity the "expands toward the walls" behaviour is about.
+float projectedOutlineWidth(const Coordinates::WindowData& window,
+                            const float height) {
+  const std::array<Coordinates::Point2D, 2> kFrontEdge =
+      HeightIndicator::projectSegment(
+          topView(), window, HeightIndicator::crossSectionOutline(height)[0]);
+  return std::abs(kFrontEdge[1].a[0] - kFrontEdge[0].a[0]);
+}
+}  // namespace
+
+// The outline's anchors rest on the room's sides at the requested height: every
+// corner is at a room bound in left/right and front/back, and at that height.
+TEST(HeightIndicatorTest, outlineAnchorsSitOnTheRoomBoundsAtTheGivenHeight) {
+  const float kHeight = 0.4f;
+  const std::array<HeightIndicator::Segment, 4> kOutline =
+      HeightIndicator::crossSectionOutline(kHeight);
+
+  for (const HeightIndicator::Segment& side : kOutline) {
+    for (const Coordinates::Point4D& anchor : {side.start, side.end}) {
+      EXPECT_NEAR(std::abs(anchor.a[0]), 1.f, kTolerance);
+      EXPECT_NEAR(anchor.a[1], kHeight, kTolerance);
+      EXPECT_NEAR(std::abs(anchor.a[2]), 1.f, kTolerance);
+      EXPECT_NEAR(anchor.a[3], 1.f, kTolerance);
+    }
+  }
+}
+
+// The four sides form one closed loop, so drawing them puts a line along every
+// side rather than leaving a gap or retracing an edge.
+TEST(HeightIndicatorTest, outlineSidesFormAClosedLoop) {
+  const std::array<HeightIndicator::Segment, 4> kOutline =
+      HeightIndicator::crossSectionOutline(-0.2f);
+
+  for (size_t i = 0; i < kOutline.size(); ++i) {
+    const Coordinates::Point4D& kNextStart =
+        kOutline[(i + 1) % kOutline.size()].start;
+    EXPECT_NEAR(kOutline[i].end.a[0], kNextStart.a[0], kTolerance);
+    EXPECT_NEAR(kOutline[i].end.a[2], kNextStart.a[2], kTolerance);
+  }
+}
+
+// Height reaches the outline through the parameter-to-NDC mapping helper, so a
+// z position parameter at its extent puts the outline at the room's ceiling --
+// the check that would fail if the scale were open-coded and drifted.
+TEST(HeightIndicatorTest, heightComesFromTheParameterMappingHelper) {
+  const float kCeiling =
+      Coordinates::toRoomNdc(0.f, 0.f, Coordinates::kPositionExtent).a[1];
+  const float kFloor =
+      Coordinates::toRoomNdc(0.f, 0.f, -Coordinates::kPositionExtent).a[1];
+
+  EXPECT_NEAR(HeightIndicator::crossSectionOutline(kCeiling)[0].start.a[1], 1.f,
+              kTolerance);
+  EXPECT_NEAR(HeightIndicator::crossSectionOutline(kFloor)[0].start.a[1], -1.f,
+              kTolerance);
+}
+
+// Both connectors start at the source and end on the outline: one on the back
+// edge at the source's left/right position, one on the right edge at the
+// source's front/back position.
+TEST(HeightIndicatorTest, leaderLinesRunFromTheSourceToTheOutlineEdges) {
+  const Coordinates::Point4D kSource = {-0.3f, 0.6f, 0.25f, 1.f};
+  const std::array<HeightIndicator::Segment, 2> kLeaders =
+      HeightIndicator::leaderLines(kSource);
+
+  for (const HeightIndicator::Segment& leader : kLeaders) {
+    EXPECT_NEAR(leader.start.a[0], kSource.a[0], kTolerance);
+    EXPECT_NEAR(leader.start.a[1], kSource.a[1], kTolerance);
+    EXPECT_NEAR(leader.start.a[2], kSource.a[2], kTolerance);
+  }
+
+  // The back edge is NDC z = +1, which this transform renders at the bottom of
+  // the view; the connector meets it at the source's own left/right position.
+  EXPECT_NEAR(kLeaders[0].end.a[0], kSource.a[0], kTolerance);
+  EXPECT_NEAR(kLeaders[0].end.a[2], 1.f, kTolerance);
+
+  // The right edge is NDC x = +1; the connector meets it at the source's own
+  // front/back position.
+  EXPECT_NEAR(kLeaders[1].end.a[0], 1.f, kTolerance);
+  EXPECT_NEAR(kLeaders[1].end.a[2], kSource.a[2], kTolerance);
+}
+
+// Every connector endpoint shares the source's height. This is what keeps the
+// connectors attached: the perspective divide is 1 / (5 - height), so an
+// endpoint at any other height would be scaled differently from the outline
+// and would drift off it.
+TEST(HeightIndicatorTest, leaderLineEndpointsShareTheSourceHeight) {
+  for (const float height : {-1.f, -0.35f, 0.f, 0.5f, 1.f}) {
+    const Coordinates::Point4D kSource = {0.42f, height, -0.7f, 1.f};
+    for (const HeightIndicator::Segment& leader :
+         HeightIndicator::leaderLines(kSource)) {
+      EXPECT_NEAR(leader.start.a[1], height, kTolerance);
+      EXPECT_NEAR(leader.end.a[1], height, kTolerance);
+    }
+  }
+}
+
+// Raising the source expands the projected outline toward the walls and
+// lowering it contracts the outline, by exactly the ratio the transform's
+// w = 5 - height implies. Nothing in the draw path scales it by hand.
+TEST(HeightIndicatorTest,
+     projectedOutlineExpandsWithHeightByTheTransformRatio) {
+  const float kLow = -0.5f;
+  const float kHigh = 0.75f;
+  const float kLowWidth = projectedOutlineWidth(kWindow, kLow);
+  const float kHighWidth = projectedOutlineWidth(kWindow, kHigh);
+
+  EXPECT_GT(kHighWidth, kLowWidth);
+  EXPECT_NEAR(kHighWidth / kLowWidth, (5.f - kLow) / (5.f - kHigh), kTolerance);
+}
+
+// The outline stays concentric with the room as it expands: its projected
+// centre is the window centre at every height, because the transform puts the
+// camera on the room's vertical axis.
+TEST(HeightIndicatorTest, projectedOutlineStaysConcentricAtEveryHeight) {
+  for (const float height : {-1.f, -0.25f, 0.f, 0.6f, 1.f}) {
+    const std::array<Coordinates::Point2D, 2> kFrontEdge =
+        HeightIndicator::projectSegment(
+            topView(), kWindow,
+            HeightIndicator::crossSectionOutline(height)[0]);
+    EXPECT_NEAR((kFrontEdge[0].a[0] + kFrontEdge[1].a[0]) / 2.f,
+                kWindow.leftCornerX + kWindow.width / 2.f, kTolerance);
+  }
+}
+
+// A window resize keeps the outline on the room's sides and both connectors
+// attached: each connector's far endpoint lands on its outline edge in the
+// resized window exactly as it does in the original one.
+TEST(HeightIndicatorTest, connectorsStayAttachedToTheOutlineAcrossWindowSizes) {
+  const Coordinates::Point4D kSource = {-0.6f, 0.3f, 0.15f, 1.f};
+
+  for (const Coordinates::WindowData& window : {kWindow, kResizedWindow}) {
+    const std::array<HeightIndicator::Segment, 4> kOutline =
+        HeightIndicator::crossSectionOutline(kSource.a[1]);
+    const std::array<HeightIndicator::Segment, 2> kLeaders =
+        HeightIndicator::leaderLines(kSource);
+
+    // The back edge runs from (-1, h, 1) to (1, h, 1): the third side of the
+    // outline. Its projected screen row is what the first connector must end
+    // on.
+    const std::array<Coordinates::Point2D, 2> kBackEdge =
+        HeightIndicator::projectSegment(topView(), window, kOutline[2]);
+    const std::array<Coordinates::Point2D, 2> kToBackEdge =
+        HeightIndicator::projectSegment(topView(), window, kLeaders[0]);
+    EXPECT_NEAR(kToBackEdge[1].a[1], kBackEdge[0].a[1], kTolerance);
+    EXPECT_GE(kToBackEdge[1].a[0],
+              std::min(kBackEdge[0].a[0], kBackEdge[1].a[0]));
+    EXPECT_LE(kToBackEdge[1].a[0],
+              std::max(kBackEdge[0].a[0], kBackEdge[1].a[0]));
+
+    // The right edge runs from (1, h, -1) to (1, h, 1): the second side.
+    const std::array<Coordinates::Point2D, 2> kRightEdge =
+        HeightIndicator::projectSegment(topView(), window, kOutline[1]);
+    const std::array<Coordinates::Point2D, 2> kToRightEdge =
+        HeightIndicator::projectSegment(topView(), window, kLeaders[1]);
+    EXPECT_NEAR(kToRightEdge[1].a[0], kRightEdge[0].a[0], kTolerance);
+    EXPECT_GE(kToRightEdge[1].a[1],
+              std::min(kRightEdge[0].a[1], kRightEdge[1].a[1]));
+    EXPECT_LE(kToRightEdge[1].a[1],
+              std::max(kRightEdge[0].a[1], kRightEdge[1].a[1]));
+  }
+}

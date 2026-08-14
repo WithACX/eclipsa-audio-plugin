@@ -81,6 +81,13 @@ class PerspectiveRoomView : public juce::Component {
     float sizeScale;
     juce::String trackLabel;
     Coordinates::Point2D pos;
+    // The same position before the projection, kept because the window
+    // position alone has lost the height: the top-down panner draws its height
+    // indicator from this, and there is no other route back (tracks_ is
+    // private and the projection is not invertible without the height).
+    // Defaults to the room's centre so a view that paints before any track
+    // data arrives reads a defined value.
+    Coordinates::Point4D ndcPos = {0.f, 0.f, 0.f, 1.f};
   };
 
   virtual const float getTrackScaling(const Coordinates::Point4D pt) const = 0;

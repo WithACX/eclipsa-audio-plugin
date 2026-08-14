@@ -61,6 +61,8 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   }
 
  private:
+  void paintHeightIndicator(const Coordinates::WindowData& window,
+                            const DrawableTrack& track, juce::Graphics& g);
   void paintFlatElevation(const Coordinates::WindowData& window,
                           juce::Graphics& g);
   void paintTentElevation(const Coordinates::WindowData& window,

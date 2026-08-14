@@ -15,11 +15,13 @@
 #include "PerspectiveRoomViews.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <cstddef>
 #include <vector>
 
 #include "components/src/room_views/ElevationSurfaces.h"
+#include "components/src/room_views/HeightIndicator.h"
 #include "data_structures/src/RepositoryCollection.h"
 
 namespace {
@@ -185,7 +187,44 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
   }
 
   if (!transformedTracks_.empty()) {
+    // The indicator sits over the translucent elevation surface and under the
+    // source marker, so the marker stays readable where the two connectors
+    // meet it.
+    paintHeightIndicator(wData, transformedTracks_[0], g);
     drawTrack(transformedTracks_[0], g);
+  }
+}
+
+void AudioElementPluginTopView::paintHeightIndicator(
+    const Coordinates::WindowData& window, const DrawableTrack& track,
+    juce::Graphics& g) {
+  // The height the indicator is drawn at is the source's own, taken from the
+  // z position parameter through Coordinates::toRoomNdc (applied in
+  // PerspectiveRoomView::transformDynamicVertices, the one place that scaling
+  // is expressed). ElevationListener recomputes z from x and y and writes it
+  // back through setZPosition for Tent, Arch, Dome, and Curve, so reading the
+  // parameter is correct under every elevation pattern and this view derives
+  // no height of its own.
+  g.setColour(EclipsaColours::controlBlue);
+
+  for (const HeightIndicator::Segment& side :
+       HeightIndicator::crossSectionOutline(track.ndcPos.a[1])) {
+    const std::array<Coordinates::Point2D, 2> kEnds =
+        HeightIndicator::projectSegment(kTransformMat_, window, side);
+    drawLine(kEnds[0], kEnds[1], g);
+  }
+
+  // Both endpoints of each connector are 3D anchors at the source's height, so
+  // the near end lands on the marker and the far end on the outline under the
+  // perspective divide and at any window size. Projecting the source here
+  // rather than reusing track.pos keeps the connector tied to the geometry the
+  // outline was built from, and the two agree by construction: pos is that
+  // same NDC point through the same transform.
+  for (const HeightIndicator::Segment& leader :
+       HeightIndicator::leaderLines(track.ndcPos)) {
+    const std::array<Coordinates::Point2D, 2> kEnds =
+        HeightIndicator::projectSegment(kTransformMat_, window, leader);
+    drawLine(kEnds[0], kEnds[1], g);
   }
 }
 
