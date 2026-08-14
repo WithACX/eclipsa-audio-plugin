@@ -87,6 +87,19 @@ float segmentLength(const HeightIndicator::Segment& segment) {
   return std::sqrt(kDx * kDx + kDy * kDy + kDz * kDz);
 }
 
+// Whether any run ends on the room's right bound -- the right-edge connector's
+// far end, and the one thing that tells it apart from the back-edge connector's
+// runs, which all hold the source's left/right position.
+bool anyRunReachesTheRightBound(
+    const std::vector<HeightIndicator::Segment>& runs) {
+  for (const HeightIndicator::Segment& run : runs) {
+    if (std::abs(run.end.a[0] - 1.f) < kTolerance) {
+      return true;
+    }
+  }
+  return false;
+}
+
 // The total length of every run in a split. The four sides are each 2 long in
 // NDC, so a split that loses or double-counts a run fails against 8.
 float totalRunLength(const HeightIndicator::SplitOutline& split) {
@@ -390,9 +403,9 @@ TEST(HeightIndicatorTest, leaderSplitLeavesBothWholeAboveAFloorLevelSurface) {
 }
 
 // With the source on the tent's FRONT slope, the back-edge connector runs over
-// the ridge and dips under it; the right-edge connector holds the source's
-// front/back position, so the surface under it never changes and it stays
-// whole. One run below, two above.
+// the ridge and dips under it. The right-edge connector is coincident with the
+// surface and is drawn on top unconditionally, so it contributes one whole run
+// to `above`. One run below, two above.
 TEST(HeightIndicatorTest, leaderSplitCutsOnlyTheBackEdgeConnector) {
   // The source rests ON the tent at front/back -0.5, where its height is 0.
   const Coordinates::Point4D kSource = {0.2f, 0.f, -0.5f, 1.f};
@@ -463,4 +476,69 @@ TEST(HeightIndicatorTest, leaderSplitRunsKeepTheSourceHeightAndSpan) {
   // twice, whatever the split did in between.
   EXPECT_NEAR(total, segmentLength(kWhole[0]) + segmentLength(kWhole[1]),
               kTolerance);
+}
+
+// The right-edge connector is drawn on top even when the surface is entirely
+// ABOVE the source, which is the case a comparison would classify as below.
+// Manual testing found it flipping between tinted and untinted; this is the
+// assertion that fails if it is ever classified rather than placed.
+TEST(HeightIndicatorTest, leaderSplitAlwaysDrawsTheRightEdgeConnectorOnTop) {
+  const Coordinates::Point4D kSource = {0.2f, -0.5f, -0.5f, 1.f};
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitLeaderLinesAtElevation(
+          kSource, [](const float) { return 0.9f; });
+
+  EXPECT_TRUE(anyRunReachesTheRightBound(kSplit.above));
+  EXPECT_FALSE(anyRunReachesTheRightBound(kSplit.below));
+
+  // The back-edge connector, by contrast, IS under a surface this high.
+  EXPECT_EQ(kSplit.below.size(), 1u);
+}
+
+// The flicker itself: the source's height reaches this code from integer
+// parameters scaled by 1/50, so it lands a fraction either side of the surface
+// it rests on. Nudging the surface across that tie must not move the right-edge
+// connector between the lists -- it is coincident with the surface at both
+// nudges, and a >= comparison answers differently at each.
+TEST(HeightIndicatorTest,
+     leaderSplitKeepsTheRightEdgeConnectorStableAcrossATie) {
+  const Coordinates::Point4D kSource = {0.2f, 0.f, -0.5f, 1.f};
+
+  for (const float kNudge : {-1e-3f, 0.f, 1e-3f}) {
+    const HeightIndicator::SplitOutline kSplit =
+        HeightIndicator::splitLeaderLinesAtElevation(
+            kSource, [kNudge](const float frontBack) {
+              return tentRoofAt(frontBack) + kNudge;
+            });
+
+    EXPECT_TRUE(anyRunReachesTheRightBound(kSplit.above)) << "nudge " << kNudge;
+    EXPECT_FALSE(anyRunReachesTheRightBound(kSplit.below))
+        << "nudge " << kNudge;
+  }
+}
+
+// It reaches the room's right bound at the source's own front/back position and
+// keeps the source's height, so placing it rather than splitting it does not
+// detach it from the marker or from the outline edge it meets.
+TEST(HeightIndicatorTest, rightEdgeConnectorKeepsItsSpanWhenPlacedOnTop) {
+  const Coordinates::Point4D kSource = {-0.4f, 0.2f, 0.3f, 1.f};
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitLeaderLinesAtElevation(kSource, tentRoofAt);
+
+  const HeightIndicator::Segment kWhole =
+      HeightIndicator::leaderLines(kSource)[1];
+  bool found = false;
+  for (const HeightIndicator::Segment& run : kSplit.above) {
+    if (std::abs(run.end.a[0] - 1.f) >= kTolerance) {
+      continue;
+    }
+    found = true;
+    EXPECT_NEAR(run.start.a[0], kWhole.start.a[0], kTolerance);
+    EXPECT_NEAR(run.start.a[1], kSource.a[1], kTolerance);
+    EXPECT_NEAR(run.start.a[2], kWhole.start.a[2], kTolerance);
+    EXPECT_NEAR(run.end.a[1], kSource.a[1], kTolerance);
+    EXPECT_NEAR(run.end.a[2], kSource.a[2], kTolerance);
+    EXPECT_NEAR(segmentLength(run), segmentLength(kWhole), kTolerance);
+  }
+  EXPECT_TRUE(found);
 }

@@ -239,22 +239,32 @@ inline std::array<Segment, 2> leaderLines(const Coordinates::Point4D& source) {
 }
 
 /**
- * @brief Split the two connectors where they cross an elevation surface.
+ * @brief Split the connectors against an elevation surface.
  *
- * The same walk the outline goes through, for the same reason: a connector runs
- * at the source's height from the source to a room bound, so it passes under a
- * roof exactly as an outline side does. Leaving them whole and on top read as
- * an inconsistency the moment the outline beside them was split.
+ * The two are NOT treated alike, because they do not meet the surface alike.
  *
- * Only the back-edge connector can actually cross. The right-edge connector
- * holds the source's front/back position along its whole length, and all three
- * curved patterns are height fields in front/back alone, so the surface height
- * under it never changes -- it is wholly above or wholly below. That falls out
- * of the walk rather than being special-cased.
+ * The BACK-EDGE connector varies in front/back, so the surface height beneath
+ * it changes along its length and it genuinely passes under a roof -- from a
+ * source on the near slope it runs over the crest. It goes through the same
+ * walk the outline does, for the same reason.
+ *
+ * The RIGHT-EDGE connector holds the source's front/back position along its
+ * whole length. Every pattern that clamps the source is a height field in
+ * front/back ALONE, so the surface beneath that line is at one height the whole
+ * way -- the source's own. The line is therefore COINCIDENT with the surface
+ * rather than above or below it, and it is drawn on top unconditionally.
+ *
+ * Classifying it by comparison instead is what made it flicker. A coincident
+ * line resolves on the tie, and the source's height reaches this code from
+ * integer position parameters scaled by 1/50, so quantisation nudges it a
+ * fraction either side of the surface it is nominally resting on: the same line
+ * came back above at one position and below at the next, tinting and untinting
+ * as the source moved. No epsilon fixes that honestly -- the comparison is
+ * being asked a question the geometry does not pose.
  *
  * @param source the source position in room-view NDC, w = 1
  * @param roofHeightAt the elevation surface's height at one front/back position
- * @param samplesPerLine positions tested along each connector, at least 2
+ * @param samplesPerLine positions tested along the back-edge connector, min 2
  * @return SplitOutline the runs under the surface and the runs over it
  */
 template <typename RoofHeightFn>
@@ -262,9 +272,11 @@ inline SplitOutline splitLeaderLinesAtElevation(
     const Coordinates::Point4D& source, RoofHeightFn&& roofHeightAt,
     const int samplesPerLine = 41) {
   SplitOutline split;
-  for (const Segment& leader : leaderLines(source)) {
-    splitSegmentInto(leader, roofHeightAt, samplesPerLine, split);
-  }
+  const std::array<Segment, 2> kLeaders = leaderLines(source);
+
+  splitSegmentInto(kLeaders[0], roofHeightAt, samplesPerLine, split);
+  split.above.push_back(kLeaders[1]);
+
   return split;
 }
 

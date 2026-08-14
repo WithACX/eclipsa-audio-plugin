@@ -175,11 +175,13 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
 
   PerspectiveRoomView::paint(g);
 
-  // The outline and the connectors both pass UNDER the elevation surface, so
-  // both are split and drawn either side of the fill. Drawn whole and over the
-  // surface they stayed at full strength where they were actually behind a
-  // translucent roof, and nothing distinguished a run in front of the roof from
-  // one behind it.
+  // The outline and the back-edge connector both pass UNDER the elevation
+  // surface, so both are split and drawn either side of the fill. Drawn whole
+  // and over the surface they stayed at full strength where they were actually
+  // behind a translucent roof, and nothing distinguished a run in front of the
+  // roof from one behind it. The right-edge connector is coincident with the
+  // surface rather than either side of it and stays on top -- see
+  // splitLeaderLinesAtElevation.
   //
   // The height both are built at is the source's own, taken from the z position
   // parameter through Coordinates::toRoomNdc (applied in
