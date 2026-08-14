@@ -1,3 +1,5 @@
+Closes WithACX/eclipsa-audio-planning#57
+
 ## What this delivers
 
 [PAN-01.3] Add the height indicator to the top-down panner.
@@ -8,7 +10,6 @@ cross-section at the source's current height, drawn as an unfilled `controlBlue`
 with a line along all four sides, plus two leader lines tying the source to it. It is
 drawn over the elevation surface and under the source marker.
 
-Closes #57
 
 ## How it works
 
