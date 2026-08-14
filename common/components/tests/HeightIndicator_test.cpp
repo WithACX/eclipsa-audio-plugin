@@ -66,6 +66,39 @@ float projectedOutlineWidth(const Coordinates::WindowData& window,
           topView(), window, HeightIndicator::crossSectionOutline(height)[0]);
   return std::abs(kFrontEdge[1].a[0] - kFrontEdge[0].a[0]);
 }
+
+// The tent's surface height at one front/back position: the ridge at the centre
+// line falling linearly to the floor at either bound, which is the shape
+// paintTentElevation draws from its six anchors.
+float tentRoofAt(const float frontBack) {
+  return 1.f - std::abs(frontBack) * 2.f;
+}
+
+// A monotonic surface, standing in for the logarithmic curve. It crosses any
+// one height ONCE, so it is what distinguishes a split that finds crossings
+// from one that assumes the symmetric pair the tent and arch happen to have.
+float monotonicRoofAt(const float frontBack) { return frontBack; }
+
+// A segment's length in room-view NDC, for the coverage invariant below.
+float segmentLength(const HeightIndicator::Segment& segment) {
+  const float kDx = segment.end.a[0] - segment.start.a[0];
+  const float kDy = segment.end.a[1] - segment.start.a[1];
+  const float kDz = segment.end.a[2] - segment.start.a[2];
+  return std::sqrt(kDx * kDx + kDy * kDy + kDz * kDz);
+}
+
+// The total length of every run in a split. The four sides are each 2 long in
+// NDC, so a split that loses or double-counts a run fails against 8.
+float totalRunLength(const HeightIndicator::SplitOutline& split) {
+  float total = 0.f;
+  for (const HeightIndicator::Segment& run : split.below) {
+    total += segmentLength(run);
+  }
+  for (const HeightIndicator::Segment& run : split.above) {
+    total += segmentLength(run);
+  }
+  return total;
+}
 }  // namespace
 
 // The outline's anchors rest on the room's sides at the requested height: every
@@ -217,5 +250,123 @@ TEST(HeightIndicatorTest, connectorsStayAttachedToTheOutlineAcrossWindowSizes) {
               std::min(kRightEdge[0].a[1], kRightEdge[1].a[1]));
     EXPECT_LE(kToRightEdge[1].a[1],
               std::max(kRightEdge[0].a[1], kRightEdge[1].a[1]));
+  }
+}
+
+// The split is what keeps the outline from drawing at full strength where it is
+// actually behind a translucent elevation surface. The cases below are the ones
+// that are silent in the plugin: a surface the outline never reaches, a surface
+// it is wholly under, the two-crossing shape the tent and arch share, and the
+// one-crossing shape the logarithmic curve has on its own.
+
+// A surface everywhere below the outline leaves every run above it, so nothing
+// is drawn before the fill -- the dome's floor-level disc and kNone both land
+// here through the -1 sentinel.
+TEST(HeightIndicatorTest, splitPutsEverythingAboveAFloorLevelSurface) {
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitAtElevation(0.f, [](const float) { return -1.f; });
+
+  EXPECT_TRUE(kSplit.below.empty());
+  EXPECT_EQ(kSplit.above.size(), 4u);
+  EXPECT_NEAR(totalRunLength(kSplit), 8.f, kTolerance);
+}
+
+// A surface everywhere above the outline puts every run below it, so the whole
+// outline is drawn before the fill and the roof tints all of it.
+TEST(HeightIndicatorTest, splitPutsEverythingBelowAHigherFlatSurface) {
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitAtElevation(-0.5f,
+                                        [](const float) { return 0.5f; });
+
+  EXPECT_TRUE(kSplit.above.empty());
+  EXPECT_EQ(kSplit.below.size(), 4u);
+  EXPECT_NEAR(totalRunLength(kSplit), 8.f, kTolerance);
+}
+
+// A source resting exactly on the surface draws OVER it. ElevationListener
+// clamps the source onto the surface for every pattern that has one, so this is
+// the common case, and a strict comparison would flicker it between the lists.
+TEST(HeightIndicatorTest, splitResolvesAnExactTieToAbove) {
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitAtElevation(0.25f,
+                                        [](const float) { return 0.25f; });
+
+  EXPECT_TRUE(kSplit.below.empty());
+  EXPECT_EQ(kSplit.above.size(), 4u);
+}
+
+// The tent crosses the outline twice along each side that runs front to back,
+// and not at all along the two that sit at the room's front and back bounds --
+// so the left and right sides split into three runs each and the other two stay
+// whole. Six runs above, two below.
+TEST(HeightIndicatorTest, splitCutsTheTentOnTheTwoFrontToBackSides) {
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitAtElevation(0.f, tentRoofAt);
+
+  EXPECT_EQ(kSplit.above.size(), 6u);
+  EXPECT_EQ(kSplit.below.size(), 2u);
+  EXPECT_NEAR(totalRunLength(kSplit), 8.f, kTolerance);
+}
+
+// The crossing lands where the surface height equals the outline height, not at
+// a sample boundary: the tent reaches 0 at front/back +/-0.5, so every run that
+// changes list does so there. This is the assertion that would fail if the
+// bisection were dropped for a nearest-sample split.
+TEST(HeightIndicatorTest, splitCrossesWhereTheSurfaceMeetsTheOutlineHeight) {
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitAtElevation(0.f, tentRoofAt);
+
+  // Each below-run spans the ridge, so both of its ends sit on a crossing.
+  for (const HeightIndicator::Segment& run : kSplit.below) {
+    EXPECT_NEAR(std::abs(run.start.a[2]), 0.5f, 1e-3f);
+    EXPECT_NEAR(std::abs(run.end.a[2]), 0.5f, 1e-3f);
+    EXPECT_NEAR(tentRoofAt(run.start.a[2]), 0.f, 1e-3f);
+  }
+}
+
+// Raising the outline above the tent's ridge leaves nothing under it, and the
+// runs collapse back to the four whole sides rather than to empty or duplicated
+// ones.
+TEST(HeightIndicatorTest, splitClearsTheTentOnceTheOutlineIsAboveTheRidge) {
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitAtElevation(1.f, tentRoofAt);
+
+  EXPECT_TRUE(kSplit.below.empty());
+  EXPECT_EQ(kSplit.above.size(), 4u);
+  EXPECT_NEAR(totalRunLength(kSplit), 8.f, kTolerance);
+}
+
+// A monotonic surface crosses once per front-to-back side, so those sides split
+// in two rather than three. The logarithmic curve is this shape, and a split
+// hard-coded to the tent's symmetric pair would get it wrong.
+TEST(HeightIndicatorTest, splitHandlesASurfaceThatCrossesOnlyOnce) {
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitAtElevation(0.f, monotonicRoofAt);
+
+  // Front side (front/back -1) is above throughout, back side (+1) below;
+  // each of the two front-to-back sides contributes one run to each list.
+  EXPECT_EQ(kSplit.above.size(), 3u);
+  EXPECT_EQ(kSplit.below.size(), 3u);
+  EXPECT_NEAR(totalRunLength(kSplit), 8.f, kTolerance);
+
+  for (const HeightIndicator::Segment& run : kSplit.above) {
+    EXPECT_LE(std::min(run.start.a[2], run.end.a[2]), kTolerance);
+  }
+}
+
+// Every run keeps the outline's height, so a split run still rests on the
+// room's sides and still projects with the rest of the outline.
+TEST(HeightIndicatorTest, splitRunsKeepTheOutlineHeight) {
+  const float kHeight = -0.25f;
+  const HeightIndicator::SplitOutline kSplit =
+      HeightIndicator::splitAtElevation(kHeight, tentRoofAt);
+
+  for (const HeightIndicator::Segment& run : kSplit.below) {
+    EXPECT_NEAR(run.start.a[1], kHeight, kTolerance);
+    EXPECT_NEAR(run.end.a[1], kHeight, kTolerance);
+  }
+  for (const HeightIndicator::Segment& run : kSplit.above) {
+    EXPECT_NEAR(run.start.a[1], kHeight, kTolerance);
+    EXPECT_NEAR(run.end.a[1], kHeight, kTolerance);
   }
 }

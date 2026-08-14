@@ -15,7 +15,10 @@
  */
 
 #pragma once
+#include <vector>
+
 #include "PerspectiveRoomView.h"
+#include "components/src/room_views/HeightIndicator.h"
 #include "data_structures/src/AudioElementSpatialLayout.h"
 #include "data_structures/src/Elevation.h"
 #include "data_structures/src/RepositoryCollection.h"
@@ -61,8 +64,16 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   }
 
  private:
-  void paintHeightIndicator(const Coordinates::WindowData& window,
-                            const DrawableTrack& track, juce::Graphics& g);
+  // The outline straddles the elevation surface, so its two halves are drawn
+  // either side of the fill; the connectors and the source marker are never
+  // under it and stay on top.
+  HeightIndicator::SplitOutline splitOutlineAtElevation(float height) const;
+  void paintOutlineRuns(const Coordinates::WindowData& window,
+                        const std::vector<HeightIndicator::Segment>& runs,
+                        juce::Graphics& g);
+  void paintHeightIndicatorConnectors(const Coordinates::WindowData& window,
+                                      const DrawableTrack& track,
+                                      juce::Graphics& g);
   void paintFlatElevation(const Coordinates::WindowData& window,
                           juce::Graphics& g);
   void paintTentElevation(const Coordinates::WindowData& window,

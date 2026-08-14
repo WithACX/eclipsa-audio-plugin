@@ -15,7 +15,9 @@
  */
 
 #pragma once
+#include <algorithm>
 #include <array>
+#include <vector>
 
 #include "Coordinates.h"
 
@@ -65,6 +67,116 @@ inline std::array<Segment, 4> crossSectionOutline(const float height) {
 
   return {Segment{kFrontLeft, kFrontRight}, Segment{kFrontRight, kBackRight},
           Segment{kBackRight, kBackLeft}, Segment{kBackLeft, kFrontLeft}};
+}
+
+// The outline sides, split by which side of the elevation surface each run
+// lies on. A painter's algorithm has no depth buffer, so the two lists are the
+// draw order: `below` goes down before the surface is filled and is tinted by
+// it, `above` goes down after and stays full strength.
+struct SplitOutline {
+  std::vector<Segment> below;
+  std::vector<Segment> above;
+};
+
+/**
+ * @brief A point partway along a segment, at parameter t in [0, 1].
+ *
+ * Height is constant along every outline side, so it survives the interpolation
+ * unchanged; only the left/right and front/back coordinates move.
+ *
+ * @param segment the segment to walk
+ * @param t the parameter, 0 at start and 1 at end
+ * @return Coordinates::Point4D the interpolated anchor, w = 1
+ */
+inline Coordinates::Point4D pointAlong(const Segment& segment, const float t) {
+  const auto kLerp = [t](const float from, const float to) {
+    return from + (to - from) * t;
+  };
+  return {kLerp(segment.start.a[0], segment.end.a[0]),
+          kLerp(segment.start.a[1], segment.end.a[1]),
+          kLerp(segment.start.a[2], segment.end.a[2]), 1.f};
+}
+
+/**
+ * @brief Split the cross-section outline where it crosses an elevation surface.
+ *
+ * The three curved patterns are ruled surfaces sampled along the room's left
+ * and right edges, so their boundary curves lie in the planes x = -1 and x = +1
+ * -- the very planes the outline's left and right sides lie in. The crossing is
+ * therefore a genuine incidence between two curves sharing a plane, and a
+ * projective transform preserves incidence: the split point lands exactly where
+ * the drawn surface edge meets the drawn outline, at any window size. Nothing
+ * here approximates a depth test.
+ *
+ * The front and back sides are handled by the same walk rather than
+ * special-cased. They sit at front/back = -/+1 where all three patterns are at
+ * or near the floor, so in practice they come back whole in `above` -- but that
+ * is an outcome of the geometry, not an assumption baked into the split.
+ *
+ * Sampling rather than solving each pattern in closed form is deliberate. It
+ * matches the surface actually DRAWN, which is faceted at the painter's own
+ * sample count, and it stays correct for a curve that crosses once (the
+ * logarithmic pattern is monotonic) as readily as for one that crosses twice.
+ *
+ * @param height the source's height in room-view NDC (-1..1)
+ * @param roofHeightAt the elevation surface's height at one front/back
+ * position; return the floor (-1) for a pattern with no surface to pass under
+ * @param samplesPerSide positions tested along each side, at least 2
+ * @return SplitOutline the runs under the surface and the runs over it
+ */
+template <typename RoofHeightFn>
+inline SplitOutline splitAtElevation(const float height,
+                                     RoofHeightFn&& roofHeightAt,
+                                     const int samplesPerSide = 41) {
+  SplitOutline split;
+  const int kSamples = std::max(2, samplesPerSide);
+
+  for (const Segment& side : crossSectionOutline(height)) {
+    // A point is ABOVE when the outline is at or over the surface. Ties resolve
+    // to above so a source resting exactly on the surface -- which is where
+    // ElevationListener puts it for every pattern that clamps -- draws over it
+    // rather than flickering between the two lists.
+    const auto kIsAbove = [&](const float t) {
+      return height >= roofHeightAt(pointAlong(side, t).a[2]);
+    };
+    const auto kEmit = [&](const float from, const float to, const bool above) {
+      // A crossing landing on a sample would otherwise emit an empty run.
+      if (to - from <= 1e-6f) {
+        return;
+      }
+      (above ? split.above : split.below)
+          .push_back(Segment{pointAlong(side, from), pointAlong(side, to)});
+    };
+
+    float runStart = 0.f;
+    bool runAbove = kIsAbove(0.f);
+    for (int i = 1; i < kSamples; ++i) {
+      const float kPrev = static_cast<float>(i - 1) / (kSamples - 1);
+      const float kHere = static_cast<float>(i) / (kSamples - 1);
+      if (kIsAbove(kHere) == runAbove) {
+        continue;
+      }
+      // Bisect the bracketing interval rather than interpolating the height
+      // difference: the tent's ridge is a crease, so that difference is not
+      // linear across a sample step containing it.
+      float lo = kPrev, hi = kHere;
+      for (int step = 0; step < 20; ++step) {
+        const float kMid = 0.5f * (lo + hi);
+        if (kIsAbove(kMid) == runAbove) {
+          lo = kMid;
+        } else {
+          hi = kMid;
+        }
+      }
+      const float kCrossing = 0.5f * (lo + hi);
+      kEmit(runStart, kCrossing, runAbove);
+      runStart = kCrossing;
+      runAbove = !runAbove;
+    }
+    kEmit(runStart, 1.f, runAbove);
+  }
+
+  return split;
 }
 
 /**
