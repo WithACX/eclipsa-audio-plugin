@@ -41,14 +41,24 @@ juce::Colour elevationFacingSurface() {
   return EclipsaColours::roomviewTranslucentWall.brighter();
 }
 
-// The height indicator's line weights: the outline at the 2.0f it shares with
-// the room, the two connectors a pixel wide against it. Both are passed
-// explicitly now that runs are drawn either side of the elevation surface, so
-// neither relies on drawLine's default. Prefixed for the same reason the two
-// surface helpers above are: the anonymous namespace spans the whole unity
-// build.
+// The height indicator's line weights. Both are passed explicitly now that runs
+// are drawn either side of the elevation surface, so neither relies on
+// drawLine's default. Prefixed for the same reason the two surface helpers
+// above are: the anonymous namespace spans the whole unity build.
+//
+// The connectors sit at the outline's 2.0f, decided by DAW comparison against
+// a 1.0f build. They had been dropped to a pixel earlier, because they carry no
+// geometry of their own -- they only tie the marker to two edges -- and at full
+// weight they competed with the outline. That judgement predated the split at
+// the elevation surface, which changed what was being judged: a connector now
+// dims where it passes under a roof, and a line that is both thin and tinted
+// gives the reader very little to see. The weight is what carries the tint.
+//
+// Two constants for one value on purpose. They are different quantities that
+// currently agree, so a future change to either is a one-line change rather
+// than an untangling.
 constexpr float kOutlineThickness = 2.f;
-constexpr float kHeightIndicatorConnectorThickness = 1.f;
+constexpr float kHeightIndicatorConnectorThickness = 2.f;
 
 }  // namespace
 
