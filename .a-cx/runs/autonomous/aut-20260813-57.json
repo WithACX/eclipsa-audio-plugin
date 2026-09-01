@@ -1,0 +1,80 @@
+{
+  "run_id": "aut-20260813-57",
+  "started_at": "2026-08-13T23:50:28Z",
+  "posture": "autonomous",
+  "queue": [57],
+  "remainder": [],
+  "dropped": [],
+  "budget": {
+    "max_units": 40,
+    "max_derived_units": 15,
+    "max_derived_per_unit": 5,
+    "max_investigations_per_unit": 2
+  },
+  "sweep": {
+    "cap": 10,
+    "eligible": 0,
+    "swept": [],
+    "left_uncollected": 0,
+    "note": "0 eligible: no buildable bug sits at board Todo. 10 bug candidates were examined and every one failed board-status-todo; 4 also failed priority and 2 also failed not-deferred. Read 2026-08-13T23:48Z via sweep_derived_bugs.py."
+  },
+  "drain_lock": {
+    "acquired": true,
+    "run_id": "aut-20260813-57",
+    "operator": "BrandenAvalonCx",
+    "local": ".git/a-cx/runs/autonomous/drain.lock",
+    "tracker": "ABSENT -- cross-clone single-flight is NOT in force (--allow-missing-tracker, operator opt-in 2026-08-13)",
+    "reclaimed_stale": false
+  },
+  "resolved": {
+    "profile": null,
+    "posture": "autonomous",
+    "autonomous_merge": { "value": false, "source": "default" },
+    "chain_pr_review": { "value": false, "source": "default" },
+    "pr_review": { "value": "human", "source": "config:deliver.pr_review" },
+    "pr_wait": {
+      "value": "block",
+      "source": "default for pr_review human",
+      "applicability": "NOT REACHED -- autonomous_merge false and chain_pr_review false mean the unit stops at the deliver-pr-review handoff, so no in-run merge point exists for a wait to sit at"
+    },
+    "admin_bypass": { "value": true, "source": "config:deliver.admin_bypass" },
+    "admin_bypass_class_1": { "value": false, "source": "default" },
+    "cleanup": { "value": "authorized", "source": "default" },
+    "decision_policy": { "value": "capture", "source": "default" },
+    "isolation": { "value": "worktree", "source": "config:deliver.isolation" },
+    "definition_of_ready": { "value": "strict", "source": "default" },
+    "tdd": { "value": false, "source": "config:flags.tdd" },
+    "security_review": { "value": true, "source": "config:flags.security_review" },
+    "pr_wait_poll_seconds": { "value": 120, "source": "default (PROVISIONAL)" },
+    "pr_wait_timeout_minutes": { "value": 720, "source": "default (PROVISIONAL)" },
+    "max_review_rounds": { "value": 3, "source": "default (PROVISIONAL)" },
+    "operator_stop_condition": "Invocation: 'stop once the PR is open for manual review and manual testing'. Consistent with the resolved posture above -- no override applied.",
+    "routing": {
+      "source": "bundled default (no deliver.models, no run_profiles)",
+      "delivery-unit": { "model": "opus", "tier": "reasoning", "effort": "medium", "source": "bundled default" },
+      "planning": { "model": "opus", "tier": "reasoning", "effort": "medium", "source": "bundled default" },
+      "planner": { "model": "opus", "tier": "reasoning", "effort": "medium", "source": "bundled default" },
+      "implementation": { "model": "sonnet", "tier": "balanced", "effort": "medium", "source": "bundled default" },
+      "review": { "model": "sonnet", "tier": "balanced", "effort": "medium", "source": "bundled default" },
+      "code-reviewer": { "model": "sonnet", "tier": "balanced", "effort": "medium", "source": "bundled default" },
+      "cpp-reviewer": { "model": "sonnet", "tier": "balanced", "effort": "medium", "source": "bundled default" },
+      "security_review": { "model": "sonnet", "tier": "balanced", "effort": "high", "source": "bundled default" },
+      "security-reviewer": { "model": "sonnet", "tier": "balanced", "effort": "high", "source": "bundled default" },
+      "observer": { "model": "haiku", "tier": "fast", "effort": "low", "source": "bundled default" }
+    },
+    "preflight_notes": [
+      "1a surface: Claude Code -- pass",
+      "1b nesting: CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH unset, effective default 3 -- pass",
+      "1c gh auth: BrandenAvalonCx; read:project granted by the operator at 2026-08-13T23:49Z after an initial scope gap",
+      "1c-bis validate_process_routing.py: exit 0, 0 entries checked, no refusals, no warnings",
+      "1c-ter reconcile_routing.py --declared: exit 0, all bundled defaults",
+      "1d-ter attended-surface guard: not armed (decision_policy resolves capture, not ask)",
+      "1d-quater drain lock: exit 6 (no [DRAIN-LOCK] tracker issue); operator opted into --allow-missing-tracker",
+      "1e queue parse: #57 OPEN, unclaimed in the run registry, board 'Todo (Current Release Items)', status:ready, priority:1-high, feature request, area:ui",
+      "1e blocked-by: #57's body names 'Blocked by: #55'; #55 is CLOSED and PR #21 merged 2026-08-13T21:47Z -- unblocked. No native blocked-by relations exist.",
+      "dependency note: #57's draw order sits above PAN-01.2's elevation surface; #56 CLOSED and PR #22 merged into acx/dev at 2026-08-13T23:23:09Z (f0cc616 confirmed ancestor of origin/acx/dev)",
+      "registry note: #56's claim and worktree are retained from run aut-20260813-56 despite that unit being delivered and merged. Does not affect #57."
+    ]
+  },
+  "units": []
+}
