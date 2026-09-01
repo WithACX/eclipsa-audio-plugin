@@ -96,12 +96,6 @@ Point4D toRoomNdc(const float x, const float y, const float z);
  */
 PositionParameters fromRoomNdc(const Point4D& ndcPoint);
 
-// Defined here rather than in Coordinates.cpp: a constexpr function must be
-// defined in every translation unit that calls it, so a definition confined to
-// the .cpp leaves every other caller with an undefined symbol at link time.
-// getIsoViewTransform is not constexpr -- it composes matrices at run time --
-// and stays in the .cpp.
-
 constexpr Mat4 getRearViewTransform() {
   /**
    * Generated with the following code:
@@ -135,10 +129,8 @@ constexpr Mat4 getSideViewTransform() {
   }};
 }
 
-// The panner's projection. Note the fourth column: w is 5 - height, so a point
-// higher in the room divides by less and projects further from the centre.
-// That is what makes the height indicator's cross-section expand toward the
-// walls as the source rises, with nothing scaling it by hand.
+// The panner's projection. Perspective, not orthographic: a point higher in the
+// room projects further from the room's centre.
 constexpr Mat4 getTopViewTransform() {
   /**
    * Generated with the following code:

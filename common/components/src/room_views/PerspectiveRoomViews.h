@@ -64,10 +64,6 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   }
 
  private:
-  // The outline and both connectors straddle the elevation surface, so each is
-  // split and drawn either side of the fill. Only the source marker is always
-  // on top -- ElevationListener clamps it onto the surface, so it is never
-  // behind the roof.
   float elevationHeightAt(float leftRight, float frontBack) const;
   Coordinates::Point4D indicatorPosition(
       const Coordinates::Point4D& sourceNdc) const;

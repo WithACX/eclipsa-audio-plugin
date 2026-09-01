@@ -20,10 +20,9 @@
 // differently).
 //
 // The perspective properties are asserted against the REAL top-view transform
-// rather than an identity one, because they are properties OF that transform:
-// its w is 5 - height, so the projection expands with height. Everything that
-// only concerns anchor placement is asserted on the anchors directly, where the
-// expected values are exact.
+// rather than an identity one, because they are properties OF that transform.
+// Everything that only concerns anchor placement is asserted on the anchors
+// directly, where the expected values are exact.
 
 // Pull in the umbrella header first: several components/src headers include
 // components.h themselves and only resolve correctly once the umbrella has
@@ -196,10 +195,9 @@ TEST(HeightIndicatorTest, leaderLinesRunFromTheSourceToTheOutlineEdges) {
   EXPECT_NEAR(kLeaders[1].end.a[2], kSource.a[2], kTolerance);
 }
 
-// Every connector endpoint shares the source's height. This is what keeps the
-// connectors attached: the perspective divide is 1 / (5 - height), so an
-// endpoint at any other height would be scaled differently from the outline
-// and would drift off it.
+// Every connector endpoint shares the source's height, which is what keeps the
+// connectors attached: an endpoint at any other height would take a different
+// perspective divide from the outline and drift off it.
 TEST(HeightIndicatorTest, leaderLineEndpointsShareTheSourceHeight) {
   for (const float height : {-1.f, -0.35f, 0.f, 0.5f, 1.f}) {
     const Coordinates::Point4D kSource = {0.42f, height, -0.7f, 1.f};
@@ -213,7 +211,7 @@ TEST(HeightIndicatorTest, leaderLineEndpointsShareTheSourceHeight) {
 
 // Raising the source expands the projected outline toward the walls and
 // lowering it contracts the outline, by exactly the ratio the transform's
-// w = 5 - height implies. Nothing in the draw path scales it by hand.
+// perspective divide implies. Nothing in the draw path scales it by hand.
 TEST(HeightIndicatorTest,
      projectedOutlineExpandsWithHeightByTheTransformRatio) {
   const float kLow = -0.5f;
@@ -396,11 +394,9 @@ TEST(HeightIndicatorTest, splitRunsKeepTheOutlineHeight) {
   }
 }
 
-// The connectors go through the same split as the outline. Manual testing found
-// that leaving them whole and on top read as an inconsistency the moment the
-// outline beside them was cut, so these pin the cases that differ from the
-// outline's: only one of the two can ever cross, and where the source rests on
-// the surface the crossing sits on an endpoint.
+// The connectors go through the same split as the outline. These pin the cases
+// that differ from the outline's: only one of the two can ever cross, and where
+// the source rests on the surface the crossing sits on an endpoint.
 
 // A surface everywhere below leaves both connectors whole and over it -- the
 // dome and kNone case, and the check that the split adds no spurious cut.
@@ -497,8 +493,7 @@ TEST(HeightIndicatorTest, leaderSplitRunsKeepTheSourceHeightAndSpan) {
 
 // The right-edge connector is drawn on top even when the surface is entirely
 // ABOVE the source, which is the case a comparison would classify as below.
-// Manual testing found it flipping between tinted and untinted; this is the
-// assertion that fails if it is ever classified rather than placed.
+// This is the assertion that fails if it is ever classified rather than placed.
 TEST(HeightIndicatorTest, leaderSplitAlwaysDrawsTheRightEdgeConnectorOnTop) {
   const Coordinates::Point4D kSource = {0.2f, -0.5f, -0.5f, 1.f};
   const HeightIndicator::SplitOutline kSplit =
@@ -513,11 +508,9 @@ TEST(HeightIndicatorTest, leaderSplitAlwaysDrawsTheRightEdgeConnectorOnTop) {
   EXPECT_EQ(kSplit.below.size(), 1u);
 }
 
-// The flicker itself: the source's height reaches this code from integer
-// parameters scaled by 1/50, so it lands a fraction either side of the surface
-// it rests on. Nudging the surface across that tie must not move the right-edge
-// connector between the lists -- it is coincident with the surface at both
-// nudges, and a >= comparison answers differently at each.
+// The flicker itself: a quantised source height lands a fraction either side of
+// the surface it rests on. Nudging the surface across that tie must not move
+// the right-edge connector between the lists.
 TEST(HeightIndicatorTest,
      leaderSplitKeepsTheRightEdgeConnectorStableAcrossATie) {
   const Coordinates::Point4D kSource = {0.2f, 0.f, -0.5f, 1.f};
@@ -656,12 +649,9 @@ TEST(HeightIndicatorTest, domeHeightDependsOnBothCoordinates) {
   EXPECT_NEAR(domeRoofAt(0.8f, 0.8f), -1.f, kTolerance);
 }
 
-// The ill-conditioning that a quantised source height causes near the dome's
-// apex, and why the view reads the height off the SURFACE instead. Position
-// parameters are integers over +/-kPositionExtent, so a height arriving through
-// them is quantised to steps of 1/50 in NDC. The dome's crown is nearly flat --
-// height is 1 - r^2 to first order -- so an error of d moves the crossing to
-// sqrt(d), and one step becomes a seventh of the room.
+// The ill-conditioning a quantised source height causes near the dome's nearly
+// flat crown, and why the view reads the height off the SURFACE instead: a
+// small height error there displaces the crossing a long way.
 
 // A source right of the dome's crest admits no crossing: the surface only falls
 // away toward the right bound. Taking its height from the surface is what makes
@@ -693,10 +683,9 @@ TEST(HeightIndicatorTest, domeLeftOfCrestCrossesAtTheMirroredPosition) {
   }
 }
 
-// The failure this guards, stated as the difference it makes. One parameter
-// step of height error at parameter x = +1 puts the line under the dome for
-// roughly a seventh of the room, on the side that admits no crossing; reading
-// the height off the surface removes the run entirely.
+// One parameter step of height error near the crown puts the line under the
+// dome for a long stretch, on the side that admits no crossing; reading the
+// height off the surface removes the run entirely.
 TEST(HeightIndicatorTest, domeQuantisedHeightManufacturesASpuriousCrossing) {
   // Parameter x = +1 of kPositionExtent = 50.
   const float kLeftRight = 1.f / 50.f;
@@ -720,9 +709,8 @@ TEST(HeightIndicatorTest, domeQuantisedHeightManufacturesASpuriousCrossing) {
   EXPECT_EQ(kQuantised.below.size(), 2u);
 
   // The right-edge run is the one that travels in left/right. It resurfaces
-  // where the dome falls to the quantised height, sqrt(1 - ((h+1)/2)^2), which
-  // for one parameter step is about 0.141 -- a seventh of the room, from a
-  // source 0.02 off centre.
+  // where the dome falls back to the quantised height, far across the room from
+  // a source barely off centre.
   bool sawTheRightEdgeRun = false;
   for (const HeightIndicator::Segment& run : kQuantised.below) {
     if (std::abs(run.end.a[0] - run.start.a[0]) <= kTolerance) {

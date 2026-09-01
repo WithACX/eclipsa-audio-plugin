@@ -41,22 +41,7 @@ juce::Colour elevationFacingSurface() {
   return EclipsaColours::roomviewTranslucentWall.brighter();
 }
 
-// The height indicator's line weights. Both are passed explicitly now that runs
-// are drawn either side of the elevation surface, so neither relies on
-// drawLine's default. Prefixed for the same reason the two surface helpers
-// above are: the anonymous namespace spans the whole unity build.
-//
-// The connectors sit at the outline's 2.0f, decided by DAW comparison against
-// a 1.0f build. They had been dropped to a pixel earlier, because they carry no
-// geometry of their own -- they only tie the marker to two edges -- and at full
-// weight they competed with the outline. That judgement predated the split at
-// the elevation surface, which changed what was being judged: a connector now
-// dims where it passes under a roof, and a line that is both thin and tinted
-// gives the reader very little to see. The weight is what carries the tint.
-//
-// Two constants for one value on purpose. They are different quantities that
-// currently agree, so a future change to either is a one-line change rather
-// than an untangling.
+// The height indicator's line weights.
 constexpr float kOutlineThickness = 2.f;
 constexpr float kHeightIndicatorConnectorThickness = 2.f;
 
@@ -185,27 +170,14 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
 
   PerspectiveRoomView::paint(g);
 
-  // The outline and the back-edge connector both pass UNDER the elevation
-  // surface, so both are split and drawn either side of the fill. Drawn whole
-  // and over the surface they stayed at full strength where they were actually
-  // behind a translucent roof, and nothing distinguished a run in front of the
-  // roof from one behind it. The right-edge connector is coincident with the
-  // surface rather than either side of it and stays on top -- see
-  // splitLeaderLinesAtElevation.
-  //
-  // The height both are built at is the source's own, taken from the z position
-  // parameter through Coordinates::toRoomNdc (applied in
-  // PerspectiveRoomView::transformDynamicVertices, the one place that scaling
-  // is expressed). ElevationListener recomputes z from x and y and writes it
-  // back through setZPosition for Tent, Arch, Dome, and Curve, so reading the
-  // parameter is correct under every elevation pattern and this view derives no
-  // height of its own. Passing ndcPos rather than the already-projected pos
-  // keeps both tied to the geometry the outline was built from.
+  // First split the indicator against the elevation surface: the outline and
+  // the back-edge connector pass under it, so each is drawn either side of the
+  // fill. The right-edge connector is coincident with the surface rather than
+  // either side of it and stays on top -- see splitLeaderLinesAtElevation.
   HeightIndicator::SplitOutline outline, connectors;
   if (!transformedTracks_.empty()) {
-    // One height function, two splits. The outline and a connector meet at a
-    // point, so they have to agree about which side of the roof that point is
-    // on; a second copy of this switch is how they would stop agreeing.
+    // One height function for both splits, so the outline and a connector
+    // agree about the point where they meet.
     const auto kRoofAt = [this](const float leftRight, const float frontBack) {
       return elevationHeightAt(leftRight, frontBack);
     };
@@ -216,6 +188,7 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
         kIndicatorPos, kRoofAt, elevationVariesAcrossLeftRight());
   }
 
+  // Then the runs that pass under the surface, so the fill tints them.
   paintIndicatorRuns(wData, outline.below, kOutlineThickness, g);
   paintIndicatorRuns(wData, connectors.below,
                      kHeightIndicatorConnectorThickness, g);
@@ -240,15 +213,13 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
       break;
   }
 
+  // Then the runs over it, at full strength.
   paintIndicatorRuns(wData, outline.above, kOutlineThickness, g);
   paintIndicatorRuns(wData, connectors.above,
                      kHeightIndicatorConnectorThickness, g);
 
   if (!transformedTracks_.empty()) {
-    // The marker alone is always on top: ElevationListener clamps the source
-    // onto the surface for every pattern that has one, so it is never behind
-    // the roof and tinting it would suggest a depth relationship that cannot
-    // occur.
+    // The audio source marker is drawn last so it is always on top.
     drawTrack(transformedTracks_[0], g);
   }
 }
@@ -268,16 +239,12 @@ float AudioElementPluginTopView::elevationHeightAt(
       return ElevationListener::getCurveElevationPt({-1.f, frontBack, 0.f})
           .a[1];
     case AudioElementSpatialLayout::Elevation::kDome: {
-      // The hemisphere, and the one pattern needing BOTH coordinates: it falls
-      // away from the room's centre in left/right as well as front/back.
+      // The one pattern needing BOTH coordinates: it falls away from the
+      // room's centre in left/right as well as front/back.
       //
-      // Outside the unit circle the dome does not exist -- the surface meets
-      // the floor at its rim, which is why paintDomeElevation's disc sits at
-      // floor height and still reads as the hemisphere's silhouette from
-      // directly above. The domain is checked HERE rather than left to the
-      // static: getDomeElevationPtClamped would CLAMP such a point onto the
-      // rim, and for a left/right beyond the room's centre it takes the square
-      // root of a negative.
+      // Beyond the dome's rim the surface is at the floor. Checked here rather
+      // than left to the static, which would clamp such a point onto the rim
+      // instead and can take the square root of a negative.
       const float kRadiusSq = leftRight * leftRight + frontBack * frontBack;
       if (kRadiusSq >= 1.f) {
         return -1.f;
@@ -287,36 +254,20 @@ float AudioElementPluginTopView::elevationHeightAt(
           .a[1];
     }
     default:
-      // kNone draws nothing at all, so there is nothing to pass under and every
-      // run comes back in `above`.
+      // kNone draws nothing, so every run comes back in `above`.
       return -1.f;
   }
 }
 
 Coordinates::Point4D AudioElementPluginTopView::indicatorPosition(
     const Coordinates::Point4D& sourceNdc) const {
-  // Where a pattern CLAMPS the source, the source's true height is the surface
-  // height at its position -- ElevationListener computes exactly that and
-  // writes it back through setZPosition. What comes back is a lossy round trip:
-  // position parameters are integers over +/-kPositionExtent
-  // (Coordinates.h), so the height returns quantised to steps of 1/50 in NDC.
-  //
-  // Comparing that quantised height against the exact surface is ILL
-  // CONDITIONED near a crest, and the dome is where it shows. Its apex is
-  // nearly flat -- height is 1 - r^2 to first order -- so a height error of d
-  // displaces the crossing to r = sqrt(d): one parameter step, 0.02, moves it
-  // 0.14, a seventh of the way across the room. That is a line dimming for a
-  // long stretch beside a source that visibly rests ON the surface, and on the
-  // side of the crest where the geometry admits no crossing at all. Observed at
-  // parameter x = -2 (a long spurious run) and x = +1 (a short one where there
-  // should be none); exact at the origin, where 50 quantises without loss.
-  //
-  // So take the height from the surface rather than from the parameter. The
-  // comparison then reads surface against surface and the quantisation drops
-  // out of it: a source right of the dome's crest yields no crossing at all,
-  // and one left of it crosses at exactly the mirrored position. The drawn
-  // height moves by at most half a parameter step, which the source marker
-  // covers.
+  // Where a pattern clamps the source, read the height back off the surface
+  // rather than off the position parameter. The parameter is quantised, and
+  // comparing a quantised height against the exact surface is ill conditioned
+  // near a crest -- on the dome that dimmed a long run of the indicator beside
+  // a source visibly resting on the surface. Reading the surface on both sides
+  // of the comparison takes the quantisation out of it, and moves the drawn
+  // height by at most half a parameter step.
   if (!elevationClampsTheSource()) {
     return sourceNdc;
   }
@@ -327,9 +278,8 @@ Coordinates::Point4D AudioElementPluginTopView::indicatorPosition(
 
 bool AudioElementPluginTopView::elevationClampsTheSource() const {
   // The four patterns ElevationListener recomputes the height for. kFlat and
-  // kNone leave the z dial live, so under those the source's height is the
-  // operator's own value and the parameter is the only thing that knows it --
-  // there is no surface to read it back from.
+  // kNone leave the z dial live, so under those only the parameter knows the
+  // source's height.
   switch (currentElevation_) {
     case AudioElementSpatialLayout::Elevation::kTent:
     case AudioElementSpatialLayout::Elevation::kArch:
@@ -342,11 +292,10 @@ bool AudioElementPluginTopView::elevationClampsTheSource() const {
 }
 
 bool AudioElementPluginTopView::elevationVariesAcrossLeftRight() const {
-  // Only the dome. Tent, arch, and curve are height fields in front/back alone,
-  // and a flat panel is one height everywhere, so under all four the right-edge
-  // connector lies at a single surface height and is placed rather than
-  // classified. Under the dome it genuinely crosses, and must be split
-  // (HeightIndicator::splitLeaderLinesAtElevation states the whole rule).
+  // Only the dome. The others are height fields in front/back alone, so the
+  // right-edge connector lies at a single surface height under them and is
+  // placed rather than split -- see
+  // HeightIndicator::splitLeaderLinesAtElevation.
   return currentElevation_ == AudioElementSpatialLayout::Elevation::kDome;
 }
 

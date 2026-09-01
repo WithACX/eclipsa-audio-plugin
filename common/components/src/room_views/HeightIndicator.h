@@ -25,20 +25,12 @@
 // horizontal cross-section at the source's height, plus the two leader lines
 // tying the source to it.
 //
-// The vertical screen axis of the top-down panner carries front/back, so height
-// has no axis of its own. This indicator is what makes it readable: the
-// cross-section sits on the room's sides at the current height, and because
-// getTopViewTransform() is a perspective projection whose w is 5 - height, the
-// projected outline expands toward the walls as the source rises and contracts
-// as it falls. That behavior is produced entirely by transforming these
-// anchors; nothing here scales anything by hand.
+// The panner's vertical screen axis carries front/back, so height has no axis
+// of its own. The cross-section supplies it: it rests on the room's sides at
+// the source's height, and the top view's perspective projection expands it
+// toward the walls as the source rises.
 //
-// Like ElevationSurfaces.h, this lives in a header of its own rather than in an
-// anonymous namespace inside PerspectiveRoomViews.cpp: a test can only reach it
-// from here (HeightIndicator_test.cpp), and PerspectiveRoomViews.cpp is
-// unity-built into components.cpp with twenty other sources, where an anonymous
-// namespace is shared across the whole translation unit and a bare helper name
-// could collide with one another source adds later.
+// Placed in a header so it can be reached by tests.
 namespace HeightIndicator {
 
 // A straight edge, held as its two 3D anchors so the projection is applied to
@@ -51,10 +43,10 @@ struct Segment {
 /**
  * @brief The room's horizontal cross-section at one height, as four segments.
  *
- * The four anchors are the room bounds at that height -- (+/-1, height, +/-1)
- * in room-view NDC -- and the segments run around them in order, so drawing all
- * four puts a line along every side of the square. Outline only: the elevation
- * surfaces are the filled shapes, and this sits over them.
+ * The anchors are the room bounds at that height and the segments run around
+ * them in order, so drawing all four puts a line along every side. Outline
+ * only -- the elevation surfaces are the filled shapes, and this sits over
+ * them.
  *
  * @param height the source's height in room-view NDC (-1..1)
  * @return std::array<Segment, 4> the four sides, in draw order
@@ -71,12 +63,9 @@ inline std::array<Segment, 4> crossSectionOutline(const float height) {
 
 // Runs of the indicator, split by which side of the elevation surface each one
 // lies on. A painter's algorithm has no depth buffer, so the two lists ARE the
-// draw order: `below` goes down before the surface is filled and is tinted by
-// it, `above` goes down after and stays full strength.
-//
-// Named for the outline it was written for, and it now carries the connectors
-// too -- both are split by the same walk, so one type keeps the caller from
-// having to pair a different result shape with each.
+// draw order: `below` is drawn before the surface is filled and is tinted by
+// it, `above` after and stays full strength. Carries the outline's runs and the
+// connectors' alike -- the same walk splits both.
 struct SplitOutline {
   std::vector<Segment> below;
   std::vector<Segment> above;
@@ -85,10 +74,8 @@ struct SplitOutline {
 /**
  * @brief A point partway along a segment, at parameter t in [0, 1].
  *
- * Height is constant along every outline side and along both connectors, so it
- * survives the interpolation unchanged; only the left/right and front/back
- * coordinates move. The interpolation covers all three components anyway, so
- * the split does not depend on that remaining true.
+ * All three components are interpolated, so a segment whose ends sit at
+ * different heights is handled too.
  *
  * @param segment the segment to walk
  * @param t the parameter, 0 at start and 1 at end
@@ -107,31 +94,17 @@ inline Coordinates::Point4D pointAlong(const Segment& segment, const float t) {
  * @brief Split one segment where it crosses an elevation surface, appending its
  * runs to a split.
  *
- * The single walk behind every part of the indicator. The outline's sides and
- * the two connectors are all straight runs at the source's height, so they
- * cross a surface by the same rule and must be split by the same code: two
- * walks would be two places for the crossing rule to drift, and the outline and
- * a connector meeting at a point would eventually disagree about which side of
- * the roof that point is on.
+ * Used for every part of the indicator, so a point where the outline and a
+ * connector meet is always classified the same way.
  *
- * The three curved patterns are ruled surfaces sampled along the room's left
- * and right edges, so their boundary curves lie in the planes x = -1 and x = +1
- * -- the very planes the outline's left and right sides lie in. The crossing is
- * therefore a genuine incidence between two curves sharing a plane, and a
- * projective transform preserves incidence: the split point lands exactly where
- * the drawn surface edge meets the drawn geometry, at any window size. Nothing
- * here approximates a depth test.
- *
- * Sampling rather than solving each pattern in closed form is deliberate. It
- * matches the surface actually DRAWN, which is faceted at the painter's own
- * sample count, and it stays correct for a curve that crosses once (the
- * logarithmic pattern is monotonic) as readily as for one that crosses twice.
+ * The crossing is found by sampling and bisection rather than by solving each
+ * pattern: it then matches the faceted surface actually drawn, and handles a
+ * curve that crosses once as readily as one that crosses twice.
  *
  * @param segment the run to split
  * @param roofHeightAt the elevation surface's height at one (left/right,
- * front/back) position; return the floor (-1) where the pattern has no surface.
- * Both coordinates are passed because the dome needs both -- it is the one
- * pattern whose height is not a function of front/back alone
+ * front/back) position; returns the floor where the pattern has no surface.
+ * Both coordinates are passed because the dome needs both
  * @param samples positions tested along the segment, at least 2
  * @param into the split to append to
  */
@@ -141,21 +114,15 @@ inline void splitSegmentInto(const Segment& segment,
                              SplitOutline& into) {
   const int kSamples = std::max(2, samples);
 
-  // A point is ABOVE when it is at or over the surface. Height is read from the
-  // interpolated point rather than taken as a parameter, so a segment whose
-  // ends sit at different heights would still be classified correctly -- none
-  // does today, and the walk does not depend on that staying true.
-  //
-  // Ties resolve to above so a source resting exactly on the surface -- which
-  // is where ElevationListener puts it for every pattern that clamps -- draws
-  // over it rather than flickering between the two lists.
+  // A point is ABOVE when it is at or over the surface. Ties resolve to above,
+  // so a source resting exactly on the surface draws over it rather than
+  // flickering between the two lists.
   const auto kIsAbove = [&](const float t) {
     const Coordinates::Point4D kAt = pointAlong(segment, t);
     return kAt.a[1] >= roofHeightAt(kAt.a[0], kAt.a[2]);
   };
   const auto kEmit = [&](const float from, const float to, const bool above) {
-    // A crossing landing on an end would otherwise emit an empty run. The
-    // connector starting ON the surface is exactly that case.
+    // Skip the empty run a crossing landing on an end would emit.
     if (to - from <= 1e-6f) {
       return;
     }
@@ -194,11 +161,7 @@ inline void splitSegmentInto(const Segment& segment,
 /**
  * @brief Split the cross-section outline where it crosses an elevation surface.
  *
- * The front and back sides go through the same walk as the other two rather
- * than being special-cased. They sit at front/back = -/+1 where all three
- * patterns are at or near the floor, so in practice they come back whole in
- * `above` -- but that is an outcome of the geometry, not an assumption baked
- * into the split.
+ * All four sides go through the same walk; none is special-cased.
  *
  * @param height the source's height in room-view NDC (-1..1)
  * @param roofHeightAt the elevation surface's height at one front/back position
@@ -220,13 +183,10 @@ inline SplitOutline splitAtElevation(const float height,
 /**
  * @brief The two leader lines from a source to its cross-section outline.
  *
- * One runs to the outline's back edge (NDC z = +1, which the top-down transform
- * renders at the bottom of the view) at the source's own left/right position;
- * the other runs to the outline's right edge (NDC x = +1) at the source's own
- * front/back position. Both endpoints are built in 3D at the source's height
- * and share its height exactly, so they stay attached to the outline under the
- * perspective divide and on a window resize -- they are not screen-axis-aligned
- * lines drawn to a pixel constant.
+ * One runs to the outline's back edge at the source's own left/right position,
+ * the other to its right edge at the source's own front/back position. Both
+ * endpoints are built in 3D at the source's height, so they stay attached to
+ * the outline under the perspective divide and on a window resize.
  *
  * @param source the source position in room-view NDC, w = 1
  * @return std::array<Segment, 2> the back-edge connector, then the right-edge
@@ -243,38 +203,15 @@ inline std::array<Segment, 2> leaderLines(const Coordinates::Point4D& source) {
 /**
  * @brief Split the connectors against an elevation surface.
  *
- * The two are not always treated alike, because they do not always meet the
- * surface alike.
+ * The BACK-EDGE connector varies in front/back, so the surface beneath it
+ * changes along its length under every pattern and it always goes through the
+ * same walk the outline does.
  *
- * The BACK-EDGE connector varies in front/back, so the surface height beneath
- * it changes along its length under EVERY pattern and it genuinely passes under
- * a roof -- from a source on the near slope it runs over the crest. It always
- * goes through the same walk the outline does.
- *
- * The RIGHT-EDGE connector holds the source's front/back position along its
- * whole length, so what happens beneath it depends on whether the surface
- * varies with left/right at all:
- *
- * - Tent, arch, and curve are height fields in front/back ALONE. The surface
- *   beneath that line is therefore at one height the whole way -- the source's
- *   own -- so the line is COINCIDENT with it rather than above or below it, and
- *   `splitRightEdge` is false: it is placed on top.
- * - The DOME is the one pattern whose height depends on left/right too, falling
- *   away from the room's centre in both. The line is then genuinely above the
- *   surface at some positions and under it at others -- from a source left of
- *   centre it runs over the dome's crest, exactly as the back-edge connector
- *   does from a source in front of it. `splitRightEdge` is true and the same
- *   walk applies.
- *
- * Classifying a COINCIDENT line by comparison is what made it flicker, which is
- * why the distinction is a parameter rather than something inferred here. That
- * line resolves on the tie, and the source's height reaches this code from
- * integer position parameters scaled by 1/50, so quantisation nudges it a
- * fraction either side of the surface it is nominally resting on: the same line
- * came back above at one position and below at the next. No epsilon fixes that
- * honestly -- the comparison is being asked a question the geometry does not
- * pose. Where the surface DOES vary beneath the line, the question is real and
- * the walk answers it.
+ * The RIGHT-EDGE connector holds the source's front/back position, so it only
+ * crosses the surface where that surface varies with left/right too -- the
+ * dome. Under the other patterns it is COINCIDENT with the surface rather than
+ * either side of it, and a coincident line classified by comparison flickers,
+ * so the caller states the distinction instead of it being inferred here.
  *
  * @param source the source position in room-view NDC, w = 1
  * @param roofHeightAt the surface height at one (left/right, front/back)

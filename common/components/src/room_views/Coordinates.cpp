@@ -52,13 +52,6 @@ Point2D toWindow(const Mat4& transformMat, const WindowData& windowData,
           -h2 * ndcPoint.a[1] + windowData.bottomCornerY - h2};
 }
 
-// The three constexpr view transforms are defined in the header. A constexpr
-// function has to be defined in every translation unit that calls it, so
-// declaring them here left every caller outside this file with an undefined
-// symbol at link time -- which is what a test reaching for
-// getTopViewTransform() ran into. getIsoViewTransform below is not constexpr
-// (it composes matrices at run time) and stays here.
-
 Mat4 getIsoViewTransform() {
   const Mat4 ortho = {{
       {0.505556f, 0.0f, 0.0f, 0.0f},
