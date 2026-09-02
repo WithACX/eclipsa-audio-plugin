@@ -39,9 +39,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
+      # clang-format is pinned to an exact version. `brew install clang-format`
+      # tracks whatever brew ships that day, so a new upstream release silently
+      # changes the expected formatting and turns this job red on code nobody
+      # touched -- 23.1.0 did exactly that by reindenting the closing brace of a
+      # wrapped braced-init-list. Installing into a venv avoids PEP 668 blocking
+      # pip on the runner's managed Python.
       - name: Check Formatting
         run: |
-          brew install clang-format
+          python3 -m venv "$RUNNER_TEMP/clang-format-venv"
+          "$RUNNER_TEMP/clang-format-venv/bin/pip" install --quiet 'clang-format==23.1.0'
+          export PATH="$RUNNER_TEMP/clang-format-venv/bin:$PATH"
+          clang-format --version
           find common -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror -i
           find rendererplugin -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror -i
           find audioelementplugin -iname '*.h' -o -iname '*.cpp' | xargs clang-format --style=file:.clang-format --dry-run -Werror -i
