@@ -39,12 +39,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v3
 
-      # clang-format is pinned to an exact version. `brew install clang-format`
-      # tracks whatever brew ships that day, so a new upstream release silently
-      # changes the expected formatting and turns this job red on code nobody
-      # touched -- 23.1.0 did exactly that by reindenting the closing brace of a
-      # wrapped braced-init-list. Installing into a venv avoids PEP 668 blocking
-      # pip on the runner's managed Python.
+      # clang-format is pinned to an exact version. seems like brew install
+      # version can vary depending on what is currently being shipped, resulting
+      # in confusion between this and the upstream
       - name: Check Formatting
         run: |
           python3 -m venv "$RUNNER_TEMP/clang-format-venv"
