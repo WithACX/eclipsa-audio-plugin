@@ -96,6 +96,35 @@ Point4D toRoomNdc(const float x, const float y, const float z);
  */
 PositionParameters fromRoomNdc(const Point4D& ndcPoint);
 
+/**
+ * @brief Recover a room-view NDC point from a window position, given the
+ * height that point sits at.
+ *
+ * The partial inverse of toWindow. The panner's projection is perspective, so
+ * a window position names a RAY through the room rather than a single point --
+ * there is no unique answer without a height, which is why one is required
+ * rather than defaulted. The drag path passes the source's current z, so a
+ * drag stays in the horizontal plane the source already occupies.
+ *
+ * The scale factors are probed out of the passed transform rather than
+ * restated as literals here, so the forward and inverse directions cannot
+ * drift apart when the transform changes. That probing assumes the transform
+ * separates the axes the way getTopViewTransform does: w depends only on the
+ * height, window x only on left/right, and window y only on front/back. It is
+ * therefore NOT a general Mat4 inverse -- hence the name. A transform with
+ * cross terms would need real matrix inversion.
+ *
+ * @param transformMat the same transform toWindow was called with
+ * @param windowData the same window data toWindow was called with
+ * @param windowPoint a position in window coordinates
+ * @param ndcUp the NDC height (up axis) the result should sit at
+ * @return Point4D the room-view NDC point, with a[1] == ndcUp and w = 1, ready
+ *         to pass to fromRoomNdc
+ */
+Point4D fromTopViewWindow(const Mat4& transformMat,
+                          const WindowData& windowData,
+                          const Point2D& windowPoint, const float ndcUp);
+
 constexpr Mat4 getRearViewTransform() {
   /**
    * Generated with the following code:

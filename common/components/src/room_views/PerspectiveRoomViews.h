@@ -19,6 +19,7 @@
 
 #include "PerspectiveRoomView.h"
 #include "components/src/room_views/HeightIndicator.h"
+#include "data_structures/src/AudioElementParameterTree.h"
 #include "data_structures/src/AudioElementSpatialLayout.h"
 #include "data_structures/src/Elevation.h"
 #include "data_structures/src/RepositoryCollection.h"
@@ -63,7 +64,33 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
     currentFlatHeight_ = Coordinates::toRoomNdc(0.f, 0.f, height).a[1];
   }
 
+  // The panner writes the position parameters, so it needs the tree. A setter
+  // rather than a constructor argument: the sibling views take only
+  // SpeakerMonitorData, and this view stays constructible and paintable
+  // without a tree -- it simply does not respond to input -- so it is no
+  // harder to build than they are. PAN-02.2 and PAN-02.3 reuse this wiring
+  // rather than adding their own.
+  void setParameterTree(AudioElementParameterTree* tree) {
+    parameterTree_ = tree;
+  }
+
+  // The first input handling in any room view. Drag only: the wheel and
+  // keyboard belong to PAN-02.2, and a speaker click to PAN-02.3.
+  void mouseDown(const juce::MouseEvent& event) override;
+  void mouseDrag(const juce::MouseEvent& event) override;
+  void mouseUp(const juce::MouseEvent& event) override;
+
  private:
+  // The window the room is currently projected into. One owner, so paint and
+  // the drag's inverse projection can never disagree about the mapping.
+  Coordinates::WindowData currentWindow() const;
+  bool sourceMarkerContains(const juce::Point<float>& windowPoint) const;
+  // The RangedAudioParameter behind a position parameter name. Gesture
+  // bracketing needs the parameter itself; AudioElementParameterTree's
+  // setters go through getParameterAsValue and emit no gesture markers.
+  juce::RangedAudioParameter* positionParameter(
+      const juce::String& parameterName) const;
+  void writeDragPosition(const juce::Point<float>& windowPoint);
   float elevationHeightAt(float leftRight, float frontBack) const;
   Coordinates::Point4D indicatorPosition(
       const Coordinates::Point4D& sourceNdc) const;
@@ -90,4 +117,12 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   AudioElementSpatialLayout::Elevation currentElevation_ =
       AudioElementSpatialLayout::Elevation::kNone;
   float currentFlatHeight_ = 0.f;
+
+  // Null until RoomViewScreen wires it. Input handling is inert without it,
+  // which is what keeps the tree optional.
+  AudioElementParameterTree* parameterTree_ = nullptr;
+  // True only between a press that landed on the source and its release, so
+  // the gesture bracket can never outlive the drag it belongs to, and a press
+  // that missed the source can never start writing.
+  bool draggingSource_ = false;
 };

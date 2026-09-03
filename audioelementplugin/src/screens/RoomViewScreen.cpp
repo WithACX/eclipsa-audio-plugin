@@ -32,6 +32,10 @@ RoomViewScreen::RoomViewScreen(
       spkrData_(monitorData) {
   audioElementSpatialLayoutRepository_->registerListener(this);
 
+  // The panner is an input surface now, so it needs the parameters it writes.
+  // PAN-02.2 (wheel) and PAN-02.3 (speaker click) reuse this same wiring.
+  room_->setParameterTree(parameterTree_);
+
   // If the audio element plugin is implementing a valid audio element, display
   // the speaker layout.
   if (!audioElementSpatialLayoutRepository_->get()
