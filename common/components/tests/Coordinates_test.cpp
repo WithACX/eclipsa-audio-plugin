@@ -23,6 +23,8 @@
 
 #include <gtest/gtest.h>
 
+#include <cstdlib>
+
 namespace {
 constexpr float kTolerance = 1e-5f;
 }  // namespace
@@ -114,5 +116,89 @@ TEST(test_room_coordinates, roundTripIsExactAtTheCorners) {
         EXPECT_EQ(back.z, z);
       }
     }
+  }
+}
+
+namespace {
+// A window with an odd size and a non-zero left corner, so a test cannot pass
+// by accident on a symmetric, origin-anchored rectangle.
+const Coordinates::WindowData kTestWindow = {.leftCornerX = 0.f,
+                                             .bottomCornerY = 431.f,
+                                             .width = 613.f,
+                                             .height = 431.f};
+
+// Project a parameter-space position into the panner window, then invert it
+// back to parameters at the height it was projected at -- the whole drag-path
+// conversion, end to end.
+Coordinates::PositionParameters projectAndInvert(const int x, const int y,
+                                                 const int z) {
+  const Coordinates::Point4D kNdc =
+      Coordinates::toRoomNdc((float)x, (float)y, (float)z);
+  const Coordinates::Point2D kWindow = Coordinates::toWindow(
+      Coordinates::getTopViewTransform(), kTestWindow, kNdc);
+  return Coordinates::fromRoomNdc(Coordinates::fromTopViewWindow(
+      Coordinates::getTopViewTransform(), kTestWindow, kWindow, kNdc.a[1]));
+}
+}  // namespace
+
+// The room's centre projects to the window's centre and inverts back to it.
+TEST(test_room_coordinates, topViewCentreRoundTripsThroughTheWindow) {
+  const Coordinates::PositionParameters back = projectAndInvert(0, 0, 0);
+  EXPECT_EQ(back.x, 0);
+  EXPECT_EQ(back.y, 0);
+  EXPECT_EQ(back.z, 0);
+}
+
+// The acceptance criterion: across a range of heights and positions, toWindow
+// followed by the inverse returns the position it started from.
+TEST(test_room_coordinates, topViewWindowRoundTripsAcrossHeightsAndPositions) {
+  for (int z : {-50, -30, -7, 0, 12, 30, 50}) {
+    for (int x : {-50, -25, -1, 0, 1, 25, 50}) {
+      for (int y : {-50, -25, -1, 0, 1, 25, 50}) {
+        const Coordinates::PositionParameters back = projectAndInvert(x, y, z);
+        EXPECT_EQ(back.x, x) << "at (" << x << ", " << y << ", " << z << ")";
+        EXPECT_EQ(back.y, y) << "at (" << x << ", " << y << ", " << z << ")";
+        EXPECT_EQ(back.z, z) << "at (" << x << ", " << y << ", " << z << ")";
+      }
+    }
+  }
+}
+
+// The height is a real input, not a formality: the projection is perspective,
+// so one window point names a different room position at each height. A drag
+// that ignored height would move the source to the wrong place.
+TEST(test_room_coordinates, topViewWindowInverseIsHeightDependent) {
+  // A point off-centre in both window axes, so both room axes have to scale.
+  const Coordinates::Point2D kOffCentre = {480.f, 120.f};
+  const auto kAtHeight = [&kOffCentre](const int z) {
+    const float kNdcUp = Coordinates::toRoomNdc(0.f, 0.f, (float)z).a[1];
+    return Coordinates::fromRoomNdc(Coordinates::fromTopViewWindow(
+        Coordinates::getTopViewTransform(), kTestWindow, kOffCentre, kNdcUp));
+  };
+
+  const Coordinates::PositionParameters kLow = kAtHeight(-50);
+  const Coordinates::PositionParameters kHigh = kAtHeight(50);
+  EXPECT_NE(kLow.x, kHigh.x);
+  EXPECT_NE(kLow.y, kHigh.y);
+  // The inverse reports back the height it was handed, unchanged.
+  EXPECT_EQ(kLow.z, -50);
+  EXPECT_EQ(kHigh.z, 50);
+  // Higher in the room means further from the window centre for the same room
+  // position, so inverting a fixed window point gives a position nearer the
+  // centre as the height rises.
+  EXPECT_LT(std::abs(kHigh.x), std::abs(kLow.x));
+}
+
+// The window inverse recovers the height it was given rather than deriving
+// one, so a drag stays in the horizontal plane the source already occupies.
+TEST(test_room_coordinates, topViewWindowInversePreservesTheGivenHeight) {
+  for (int z : {-50, -13, 0, 13, 50}) {
+    const float kNdcUp = Coordinates::toRoomNdc(0.f, 0.f, (float)z).a[1];
+    const Coordinates::Point4D kRoomNdc =
+        Coordinates::fromTopViewWindow(Coordinates::getTopViewTransform(),
+                                       kTestWindow, {300.f, 200.f}, kNdcUp);
+    EXPECT_NEAR(kRoomNdc.a[1], kNdcUp, kTolerance);
+    EXPECT_NEAR(kRoomNdc.a[3], 1.f, kTolerance);
+    EXPECT_EQ(Coordinates::fromRoomNdc(kRoomNdc).z, z);
   }
 }
