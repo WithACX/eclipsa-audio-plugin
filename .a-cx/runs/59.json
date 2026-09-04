@@ -1,0 +1,223 @@
+{
+  "issue": 59,
+  "key": "PAN-02.1",
+  "mode": "standard",
+  "repo_target": "WithACX/eclipsa-audio-plugin",
+  "tracker_repo": "WithACX/eclipsa-audio-planning",
+  "branch": "59-position-audio-source-click-drag",
+  "worktree": ".a-cx/worktrees/59-position-audio-source-click-drag",
+  "base_branch": "acx/dev",
+  "current_item": null,
+  "completed_items": [
+    59
+  ],
+  "blocked_reason": null,
+  "gates": {
+    "routing_preflight_1a": "pass -- 0 entries checked, exit 0",
+    "closed_issue_1b": "pass -- #59 OPEN, no sub-issues",
+    "prior_attempt_1b_bis": "pass -- no prior closed-unmerged PRs, no open non-mergeable PRs",
+    "family_expansion_1b_ter": "no-op -- family of one (no open sub-issues); #59 is a child, naming a child expands nothing",
+    "premise_gate_1b_quater": "clean -- disposition clean, load_bearing clean, exit 0; tier2 unavailable (no measurement tool declared)",
+    "blocked_by_1c_bis": "pass -- blocked_by [#55] state closed; open blocker count 0",
+    "readiness_1d": "READY -- status:ready + priority:1-high + Estimate 8.0; criteria are observable outcomes; test approach named (unit tests in common/components/tests/ + ctest + clang-format)",
+    "type_conformance_1e": "n/a -- feature request, not bug",
+    "bug_evidence_1e_bis": "n/a -- not a bug",
+    "sandbox_safety_4": "pass -- no deletions planned, nothing matches the destructive blocklist"
+  },
+  "board": [
+    "Board: #59 -> In Progress (verified)",
+    "Board: #54 -> In Progress (parent of #59, verified)"
+  ],
+  "assignment": [
+    "Assigned: #59 -> BrandenAvalonCx (verified)",
+    "Assigned: #54 -> BrandenAvalonCx (parent of #59, verified)"
+  ],
+  "board_scope_note": "First board attempt FAILED: token held read:project only. Operator ran `gh auth refresh -h github.com -s project` in-session; both writes then succeeded with read-back. Recorded because the run initially reported the gap rather than the move.",
+  "registry_repair": "registry.json was in the legacy dict shape (run_registry.py exit 2 MALFORMED). Converted dict -> bare list, all 8 existing claims preserved (42,41,47,43,38,55,56,57), backup at .git/a-cx/runs/registry.json.dict-backup.",
+  "base_sync": "Local acx/dev was 18 commits behind origin/acx/dev (carry-forward precondition 3 failed). Fast-forwarded c8f4b26 -> fb4b0ac after moving an untracked .a-cx/runs/autonomous/aut-20260813-57.json aside; the local copy was a superset (12541 bytes vs 5081, adds a units[] audit entry) and was restored over the tracked one.",
+  "carry_forward_1f_bis": {
+    "mode": "off-branch",
+    "commit": "16d52b713a88bc3f01710ec11f0b561276f9882e",
+    "base_readback": "acx/dev unchanged at fb4b0ace683d84cb029464e1ceeb9f3eb149584a (before == after)",
+    "adopted_count": 13,
+    "adopted": [
+      ".a-cx/learnings/background-build-polling-workflow.md",
+      ".a-cx/learnings/background-task-status-polling-workflow.md",
+      ".a-cx/learnings/ci-simulation-yaml-extraction-pattern.md",
+      ".a-cx/learnings/diagnostic-log-extraction-grep-pipeline.md",
+      ".a-cx/learnings/elevation-surface-batch-exploration.md",
+      ".a-cx/learnings/observer-analysis-2026-08-13.md",
+      ".a-cx/learnings/parametric-expansion-2d-geometry.md",
+      ".a-cx/learnings/partial-read-offset-limit-pattern.md",
+      ".a-cx/learnings/refactoring-with-architecture-docs.md",
+      ".a-cx/learnings/surgical-read-offset-before-edit.md",
+      ".a-cx/learnings/tool-version-byte-identity-verification.md",
+      ".a-cx/learnings/worktree-experiment-isolation-pattern.md",
+      ".a-cx/runs/autonomous/aut-20260813-57.json"
+    ],
+    "withheld": ".a-cx/learnings/MEMORY.md -- no YAML frontmatter block; the repo learnings validator rejects it and --fix cannot clear it. Needs a human. MEMORY.md is an index file and by design carries no frontmatter, so this looks like a validator gap rather than a bad file.",
+    "hook_parity": "commit-tree runs no pre-commit hook, so the validate-learnings.py --fix normalization pass did not run on the adopted files; the command reported the em-dash normalization it would have applied."
+  },
+  "lfs_guard": "8 LFS-tracked binaries showed phantom modifications on the fresh worktree checkout; git lfs status confirmed Git hash == File hash on all 8 (false positives). Marked assume-unchanged; worktree status is now clean. Never staged.",
+  "body_conformance_2b": "Title conformant (plan key, no type marker). Body UPGRADED: 10 acceptance criteria converted from plain bullets to `- [ ]` checkboxes (ILC-23.3 -- the close predicate counts boxes only), and the two in-thread implementation notes folded into Scope as a subsection. Every original statement preserved. Amend verified=true, 10 checkboxes read back.",
+  "drift_check_2c": {
+    "planned_against": "9a54cc21b93e32dcb3789a5cd2ddca57b9c6e254",
+    "merged_since_touching_scope": [
+      "#21 (PAN-01.1 / #55)",
+      "#22 (PAN-01.2 / #56)",
+      "#23 (PAN-01.3 / #57)",
+      "#24 (clang-format pin)"
+    ],
+    "overlapping_files": [
+      "common/components/src/room_views/Coordinates.cpp",
+      "common/components/src/room_views/Coordinates.h",
+      "common/components/src/room_views/PerspectiveRoomViews.cpp",
+      "common/components/src/room_views/PerspectiveRoomViews.h",
+      "audioelementplugin/src/screens/RoomViewScreen.cpp",
+      "audioelementplugin/src/screens/RoomViewScreen.h",
+      "common/components/tests/CMakeLists.txt",
+      "common/components/tests/Coordinates_test.cpp"
+    ],
+    "disposition": "SURFACED, not stale. The overlap is the intended PAN family sequence -- #55/#56/#57 are #59's declared prerequisites and #55 was its blocked_by. One material change absorbed: CI pins clang-format to 23.1.0 (PR #24), so the format gate must run against that version, not local brew.",
+    "plan_docs_read": ".a-cx/plan/free-form-pan/{objectives.md,design.md} from the tracker repo (tracker.repo set, so Plan: resolves there, not locally)"
+  },
+  "context_ladder_read": [
+    "#59 body + 2 comments",
+    "#54 (parent feature) body",
+    "free-form-pan/objectives.md",
+    "free-form-pan/design.md",
+    "native blocked_by relations at both levels"
+  ],
+  "acceptance_criteria": {
+    "Pressing on the source marker and dragging moves it in left/right and front/back, and it follows the pointer within the room bounds. A press elsewhere in the room does not move the source.": "pass -- operator DAW pass, 2026-09-04, confirmed at merge of PR #25.",
+    "Position is clamped to -50..50 per axis and quantized to integers; no float drift accumulates across a long drag.": "pass -- clamp reads AutoParamMetaData::positionRange_ in writeDragPositionParameter (not a repeated literal); quantization is fromRoomNdc's std::lround; each drag event is computed from the pointer rather than the previous value, so nothing accumulates. Exactness covered by test_room_coordinates.topViewWindowRoundTripsAcrossHeightsAndPositions (343 combinations, passed).",
+    "A drag records in the host as a single continuous automation gesture, not a burst of unrelated writes, and plays back correctly.": "pass -- operator DAW pass, 2026-09-04: automation recorded and played back.",
+    "The x and y dials in `PositionSelectionScreen` update live during a drag; editing a dial still moves the source.": "pass -- operator DAW pass, 2026-09-04; mechanism was the 10 Hz parameter poll in PositionSelectionScreen::timerCallback.",
+    "Under Dome, dragging beyond the circle leaves the source pinned at the boundary and it does not jump or oscillate; the clamp math is not duplicated in the drag path.": "pass -- operator DAW pass, 2026-09-04: pinned at the boundary without oscillation. Clamp ownership unchanged in getDomeElevationPtClamped.",
+    "Under Tent, Arch, Dome, and Curve, dragging x/y updates height as `ElevationListener` dictates, and the height indicator from PAN-01.3 follows.": "pass -- operator DAW pass, 2026-09-04: height followed under all four patterns, indicator tracked.",
+    "The drawn source position always reflects the parameter values, not the pointer position.": "pass -- established by NOT changing the render path: RoomViewScreen's 60 Hz timerCallback pushes getX/Y/ZPosition into setTracks, and the drag writes parameters only. No pointer coordinate reaches the draw path, so this holds by construction rather than by new code.",
+    "The window-to-room inverse takes height as an input and is unit-tested in `common/components/tests/`: for a range of heights and positions, `toWindow` followed by the inverse returns the original position.": "pass -- Coordinates::fromTopViewWindow takes ndcUp as a required parameter. Four tests added to common/components/tests/Coordinates_test.cpp, all passed (ctest #256-#259): topViewCentreRoundTripsThroughTheWindow, topViewWindowRoundTripsAcrossHeightsAndPositions (7 heights x 7 x 7 positions = 343 exact), topViewWindowInverseIsHeightDependent, topViewWindowInversePreservesTheGivenHeight.",
+    "The numeric dials still write through their existing path, ungestured and unchanged.": "pass -- no change to PositionSelectionScreen or to AudioElementParameterTree::setX/Y/ZPosition. The drag reaches RangedAudioParameter through APVTS::getParameter, a separate path; the dials keep getParameterAsValue().setValue(). Verified by the diff touching neither file.",
+    "`clang-format --style=file:.clang-format --dry-run -Werror` passes across `common/`, `rendererplugin/`, and `audioelementplugin/`; ctest passes.": "pass -- clang-format 23.1.0 (the CI-pinned version, in a venv; local brew 22.1.8 disagrees) reports all three directories clean. ctest: 332/332 passed, 0 failed. CI Clang Format check on PR #25: pass."
+  },
+  "implementation_standards": {
+    "files": [
+      "common/components/src/room_views/Coordinates.h",
+      "common/components/src/room_views/Coordinates.cpp",
+      "common/components/src/room_views/PerspectiveRoomViews.h",
+      "common/components/src/room_views/PerspectiveRoomViews.cpp",
+      "audioelementplugin/src/screens/RoomViewScreen.cpp",
+      "common/components/tests/Coordinates_test.cpp"
+    ],
+    "resolved": [
+      {
+        "content_type": "cpp source",
+        "owner": "cpp skill (cpp plugin)",
+        "disposition": "read",
+        "evidence": "repo conventions taken from the surrounding room_views sources and the .clang-format config; RAII/const-correctness and naming applied per the existing file idiom (k-prefixed locals, trailing-underscore members)."
+      }
+    ],
+    "unmatched": []
+  },
+  "report": {
+    "items": [
+      {
+        "issue": 59,
+        "key": "PAN-02.1",
+        "title": "Position the audio source by click-and-drag in the panner",
+        "outcome": "delivered and merged",
+        "pr": 25
+      }
+    ],
+    "skipped": [],
+    "prs": [
+      "https://github.com/WithACX/eclipsa-audio-plugin/pull/25"
+    ],
+    "internal_capture": {
+      "carry_forward_1f_bis": "16d52b7 -- 13 paths adopted off-branch; base ref unmoved",
+      "during_delivery_step6": "f38a90b -- 3 learnings written by this task",
+      "post_push_recheck": "exit 0 -- nothing to capture",
+      "release_6_bis": "12 of 13 released from the primary clone; 1 withheld (.a-cx/runs/autonomous/aut-20260813-57.json -- tracked on this branch, so removing it would be a deletion in the shared clone)",
+      "completion_gate_step8": "PASSED (exit 0). Observer flush wrote 3 learnings; captured as cbe724c and pushed, CI re-polled green on the new head, then --check returned exit 0. One path remains WITHHELD by the command's own rule and does not hold the gate: .a-cx/learnings/MEMORY.md (no YAML frontmatter; --fix cannot clear it).",
+      "observer_flush_content_review": "All 3 observer-written learnings read as CONTENT before committing (required: a captured learning is prose later runs apply). No injected instructions, no credential-shaped strings. TWO contained factual errors and were CORRECTED before capture: (a) deliver-code-python-script-gate-sequence.md inverted the script order and claimed capture feeds the verdicts -- actually parent_verdicts must precede the tick, and capture feeds no verdict; (b) github-cli-board-gate-sequence.md claimed closing_list_guard checks blockers (sub-issues only) and that board Status and status:* mirror bidirectionally (board_fields_mirrored: 0 on this repo). A third had polling advice contradicting the harness rule; softened."
+    },
+    "cleanup": "not applicable -- no merge this run by operator instruction; worktree and registry claim retained for the review round"
+  },
+  "ci_completion_gate": "green -- Clang Format pass (17s); matrix.os skipping (workflow_dispatch-gated). All checks terminal. NOTE: the build+ctest matrix does not run on PRs, so CI proves formatting only; the local build and ctest are the build/test evidence.",
+  "pr": {
+    "number": 25,
+    "url": "https://github.com/WithACX/eclipsa-audio-plugin/pull/25",
+    "base": "acx/dev",
+    "draft": false,
+    "closing_issues_references": [],
+    "closing_link_note": "Empty by design: detached topology, the issue lives in the tracker repo and a cross-repo `Closes` keyword does not register as a closing link. Exact set equality against the intended empty set holds.",
+    "reviewer": "self-review chosen by the operator under admin_bypass; `gh pr edit --add-reviewer BrandenAvalonCx` exited 0 but the readback shows requested=[] -- GitHub silently refuses the PR author as a requested reviewer. NOT claimed as assigned."
+  },
+  "board_final": [
+    "Board: #59 -> In Review (verified)",
+    "Board: #54 -- stays In Progress (3 of 4 children still open; not at its last child)"
+  ],
+  "labels_final": "status:ready -> status:in-review on #59 (verified)",
+  "local_verification": {
+    "build": "cmake --build build -j 4 -- exit 0, all targets incl. both VST3 plugins",
+    "ctest": "332/332 passed, 0 failed (serial, no -j: FileOutputTests is not parallel-safe)",
+    "clang_format": "clean across common/, rendererplugin/, audioelementplugin/ at pinned 23.1.0",
+    "vst3_built": [
+      "build/audioelementplugin/AudioElementPlugin_artefacts/Release/VST3/Eclipsa Audio Element Plugin.vst3",
+      "build/rendererplugin/RendererPlugin_artefacts/Release/VST3/Eclipsa Audio Renderer.vst3"
+    ]
+  },
+  "commits": [
+    {
+      "sha": "16d52b7",
+      "subject": "chore(a-cx): capture 13 internal work-product files",
+      "class": "config-only",
+      "role": "carry-forward, branch base"
+    },
+    {
+      "sha": "eabc9eb",
+      "subject": "feat(room_views): position the audio source by dragging it in the panner",
+      "class": "contribution",
+      "role": "the deliverable"
+    },
+    {
+      "sha": "f38a90b",
+      "subject": "chore(a-cx): capture 3 learnings",
+      "class": "config-only",
+      "role": "written during delivery"
+    },
+    {
+      "sha": "cbe724c",
+      "subject": "chore(a-cx): capture 3 learnings",
+      "class": "config-only",
+      "role": "observer flush at the completion gate"
+    }
+  ],
+  "leak_guard": "check_upstream_leak.py classify: 3 x config-only, 1 x contribution. Separation verified, so the contribution commit is cleanly cherry-pickable upstream.",
+  "criteria_result": "Criteria: #59 -> 10 ticked, 0 left unticked. The 5 DAW-observation criteria were verified by the operator's manual pass on 2026-09-04 and confirmed at the merge of PR #25.",
+  "parent_verdicts": "Recorded + published 1 criterion on #54 ('The window-to-parameter conversion is unit-tested'): https://github.com/WithACX/eclipsa-audio-planning/issues/54#issuecomment-5532864607",
+  "manual_test_ready": {
+    "vst3_installed": [
+      "~/Library/Audio/Plug-Ins/VST3/Eclipsa Audio Element Plugin.vst3",
+      "~/Library/Audio/Plug-Ins/VST3/Eclipsa Audio Renderer.vst3"
+    ],
+    "au_installed": [
+      "~/Library/Audio/Plug-Ins/Components/Eclipsa Audio Element Plugin.component",
+      "~/Library/Audio/Plug-Ins/Components/Eclipsa Audio Renderer.component"
+    ],
+    "verified": "nm on the installed VST3 binary shows AudioElementPluginTopView::mouseDown/mouseDrag/mouseUp, so the installed plugin carries this branch's drag code (fromTopViewWindow itself is inlined away under LTO+Release)."
+  },
+  "retained_state": "Worktree and run-registry claim RETAINED deliberately: the operator instructed no merge, and the worktree holds the build and the installed-plugin provenance needed for the manual pass. Teardown belongs to the run that merges.",
+  "next_step": "/deliver-pr-review 25 after the operator's manual review and DAW testing.",
+  "merge": {
+    "pr": 25,
+    "state": "MERGED",
+    "merged_at": "2026-09-04T17:43:22Z",
+    "merge_commit": "fec53d5132ad875bc76fd691a25e52433924ffbd",
+    "base": "acx/dev",
+    "merged_by": "BrandenAvalonCx",
+    "shape": "merge commit, not squash -- all 5 commits persist in acx/dev history",
+    "head_branch": "deleted on origin at merge",
+    "ancestry_verified": "eabc9eb, 8e772a3, cbe724c all confirmed ancestors of origin/acx/dev"
+  }
+}

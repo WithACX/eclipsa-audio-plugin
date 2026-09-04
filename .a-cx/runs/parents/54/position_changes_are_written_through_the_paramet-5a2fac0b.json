@@ -1,0 +1,7 @@
+{
+  "criterion": "Position changes are written through the parameter tree with proper parameter gestures, so host automation write and playback behave as they already do for the numeric dials.",
+  "verdict": "pass -- operator DAW pass 2026-09-04, gesture bracketing on the drag only; dials unchanged",
+  "unit": 59,
+  "run_id": "deliver-code-59-20260903",
+  "recorded_at": "2026-09-04T17:47:46Z"
+}
