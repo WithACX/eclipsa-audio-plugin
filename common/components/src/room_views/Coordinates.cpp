@@ -55,21 +55,19 @@ Point2D toWindow(const Mat4& transformMat, const WindowData& windowData,
 Point4D fromTopViewWindow(const Mat4& transformMat,
                           const WindowData& windowData,
                           const Point2D& windowPoint, const float ndcUp) {
-  // Undo toWindow's NDC-to-window step.
+  // Recover the NDC coordinates toWindow mapped into the window.
   const float w2 = windowData.width / 2;
   const float h2 = windowData.height / 2;
   const float ndcX = (windowPoint.a[0] - windowData.leftCornerX - w2) / w2;
   const float ndcY = -(windowPoint.a[1] - windowData.bottomCornerY + h2) / h2;
 
-  // Probe the transform at this height instead of restating its coefficients:
-  // the probes go through the same vector-matrix product toWindow uses, so the
-  // two directions read the transform identically by construction.
+  // Read the scale factors through the same product toWindow applies.
   const Point4D kAtCentre = Point4D{0.f, ndcUp, 0.f, 1.f} * transformMat;
   const Point4D kAtUnitLeftRight = Point4D{1.f, ndcUp, 0.f, 1.f} * transformMat;
   const Point4D kAtUnitFrontBack = Point4D{0.f, ndcUp, 1.f, 1.f} * transformMat;
 
-  // The perspective divisor depends on the height alone, so at a fixed height
-  // it is a constant and each window axis is affine in its one room axis.
+  // At a fixed height the divisor is constant and each window axis follows one
+  // room axis.
   const float kDivisor = kAtCentre.a[3];
   const float kLeftRightScale = kAtUnitLeftRight.a[0] - kAtCentre.a[0];
   const float kFrontBackScale = kAtUnitFrontBack.a[1] - kAtCentre.a[1];

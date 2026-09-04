@@ -97,29 +97,22 @@ Point4D toRoomNdc(const float x, const float y, const float z);
 PositionParameters fromRoomNdc(const Point4D& ndcPoint);
 
 /**
- * @brief Recover a room-view NDC point from a window position, given the
- * height that point sits at.
+ * @brief Recover a room-view NDC point from a window position at a known
+ * height.
  *
- * The partial inverse of toWindow. The panner's projection is perspective, so
- * a window position names a RAY through the room rather than a single point --
- * there is no unique answer without a height, which is why one is required
- * rather than defaulted. The drag path passes the source's current z, so a
- * drag stays in the horizontal plane the source already occupies.
+ * The projection is perspective, so a window position names a ray through the
+ * room. The height selects a point on that ray.
  *
- * The scale factors are probed out of the passed transform rather than
- * restated as literals here, so the forward and inverse directions cannot
- * drift apart when the transform changes. That probing assumes the transform
- * separates the axes the way getTopViewTransform does: w depends only on the
- * height, window x only on left/right, and window y only on front/back. It is
- * therefore NOT a general Mat4 inverse -- hence the name. A transform with
- * cross terms would need real matrix inversion.
+ * Inverts only a transform that separates its axes as getTopViewTransform
+ * does: w from the height, window x from left/right, window y from
+ * front/back.
  *
  * @param transformMat the same transform toWindow was called with
  * @param windowData the same window data toWindow was called with
  * @param windowPoint a position in window coordinates
- * @param ndcUp the NDC height (up axis) the result should sit at
- * @return Point4D the room-view NDC point, with a[1] == ndcUp and w = 1, ready
- *         to pass to fromRoomNdc
+ * @param ndcUp the NDC height the result should sit at
+ * @return Point4D room-view NDC, with a[1] == ndcUp and w = 1, ready for
+ *         fromRoomNdc
  */
 Point4D fromTopViewWindow(const Mat4& transformMat,
                           const WindowData& windowData,

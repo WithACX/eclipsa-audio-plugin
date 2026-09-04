@@ -120,16 +120,14 @@ TEST(test_room_coordinates, roundTripIsExactAtTheCorners) {
 }
 
 namespace {
-// A window with an odd size and a non-zero left corner, so a test cannot pass
-// by accident on a symmetric, origin-anchored rectangle.
+// An odd-sized window, so a test cannot pass on symmetry alone.
 const Coordinates::WindowData kTestWindow = {.leftCornerX = 0.f,
                                              .bottomCornerY = 431.f,
                                              .width = 613.f,
                                              .height = 431.f};
 
-// Project a parameter-space position into the panner window, then invert it
-// back to parameters at the height it was projected at -- the whole drag-path
-// conversion, end to end.
+// Runs the whole drag conversion: parameters to window, then back at the same
+// height.
 Coordinates::PositionParameters projectAndInvert(const int x, const int y,
                                                  const int z) {
   const Coordinates::Point4D kNdc =
@@ -149,8 +147,8 @@ TEST(test_room_coordinates, topViewCentreRoundTripsThroughTheWindow) {
   EXPECT_EQ(back.z, 0);
 }
 
-// The acceptance criterion: across a range of heights and positions, toWindow
-// followed by the inverse returns the position it started from.
+// A round trip through the window returns the original position at every
+// height.
 TEST(test_room_coordinates, topViewWindowRoundTripsAcrossHeightsAndPositions) {
   for (int z : {-50, -30, -7, 0, 12, 30, 50}) {
     for (int x : {-50, -25, -1, 0, 1, 25, 50}) {
@@ -164,11 +162,9 @@ TEST(test_room_coordinates, topViewWindowRoundTripsAcrossHeightsAndPositions) {
   }
 }
 
-// The height is a real input, not a formality: the projection is perspective,
-// so one window point names a different room position at each height. A drag
-// that ignored height would move the source to the wrong place.
+// One window point resolves to a different room position at each height.
 TEST(test_room_coordinates, topViewWindowInverseIsHeightDependent) {
-  // A point off-centre in both window axes, so both room axes have to scale.
+  // Off-centre in both axes so both room axes scale.
   const Coordinates::Point2D kOffCentre = {480.f, 120.f};
   const auto kAtHeight = [&kOffCentre](const int z) {
     const float kNdcUp = Coordinates::toRoomNdc(0.f, 0.f, (float)z).a[1];
@@ -180,17 +176,14 @@ TEST(test_room_coordinates, topViewWindowInverseIsHeightDependent) {
   const Coordinates::PositionParameters kHigh = kAtHeight(50);
   EXPECT_NE(kLow.x, kHigh.x);
   EXPECT_NE(kLow.y, kHigh.y);
-  // The inverse reports back the height it was handed, unchanged.
   EXPECT_EQ(kLow.z, -50);
   EXPECT_EQ(kHigh.z, 50);
-  // Higher in the room means further from the window centre for the same room
-  // position, so inverting a fixed window point gives a position nearer the
-  // centre as the height rises.
+  // A higher source projects further out, so a fixed window point resolves
+  // nearer the centre.
   EXPECT_LT(std::abs(kHigh.x), std::abs(kLow.x));
 }
 
-// The window inverse recovers the height it was given rather than deriving
-// one, so a drag stays in the horizontal plane the source already occupies.
+// The inverse returns the height it was given.
 TEST(test_room_coordinates, topViewWindowInversePreservesTheGivenHeight) {
   for (int z : {-50, -13, 0, 13, 50}) {
     const float kNdcUp = Coordinates::toRoomNdc(0.f, 0.f, (float)z).a[1];
