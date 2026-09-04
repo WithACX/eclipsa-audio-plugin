@@ -228,8 +228,7 @@ void PerspectiveRoomView::updateSpeakerColours() {
 
 void PerspectiveRoomView::drawSpeaker(const DrawableSpeaker& spkr,
                                       juce::Graphics& g) {
-  // Do not draw the speaker if it is hidden.
-  if (kHiddenSpeakers_.contains(spkr.tag)) {
+  if (!speakerIsDrawn(spkr)) {
     return;
   }
 
