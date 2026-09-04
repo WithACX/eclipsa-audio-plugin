@@ -1,0 +1,7 @@
+{
+  "criterion": "The window-to-parameter conversion is unit-tested (`common/components/tests/`).",
+  "verdict": "pass -- Coordinates_test.cpp, 4 tests added for fromTopViewWindow (ctest #256-#259, all passed); PAN-01.1 already covered the parameter<->NDC half",
+  "unit": 59,
+  "run_id": "deliver-code-59-20260903",
+  "recorded_at": "2026-09-03T22:17:37Z"
+}

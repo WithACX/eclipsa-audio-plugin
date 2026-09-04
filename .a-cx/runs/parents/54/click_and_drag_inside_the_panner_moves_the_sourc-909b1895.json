@@ -1,0 +1,7 @@
+{
+  "criterion": "Click-and-drag inside the panner moves the source in left/right and front/back, and the x and y numeric dials track it live.",
+  "verdict": "pass -- operator DAW pass 2026-09-04, delivered by PR #25",
+  "unit": 59,
+  "run_id": "deliver-code-59-20260903",
+  "recorded_at": "2026-09-04T17:47:43Z"
+}
