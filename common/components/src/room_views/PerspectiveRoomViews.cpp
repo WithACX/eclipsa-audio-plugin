@@ -53,12 +53,26 @@ constexpr float kAudioSourceGrabMargin = 4.f;
 
 // setValueNotifyingHost takes a normalized value. Passing a raw position would
 // peg the parameter to its maximum.
-void writeDragPositionParameter(juce::RangedAudioParameter* parameter,
-                                const int value) {
+//
+// Emits no gesture of its own: the drag brackets the whole gesture from
+// mouseDown to mouseUp, and writeSteppedPositionParameter brackets a single
+// step.
+void writePositionParameter(juce::RangedAudioParameter* parameter,
+                            const int value) {
   const int kClamped =
       std::clamp(value, AutoParamMetaData::positionRange_.first,
                  AutoParamMetaData::positionRange_.second);
   parameter->setValueNotifyingHost(parameter->convertTo0to1((float)kClamped));
+}
+
+// A nudge and a wheel notch are each one discrete change rather than a
+// continuous gesture, so each carries its own bracket and none is left open
+// between events.
+void writeSteppedPositionParameter(juce::RangedAudioParameter* parameter,
+                                   const int value) {
+  parameter->beginChangeGesture();
+  writePositionParameter(parameter, value);
+  parameter->endChangeGesture();
 }
 
 }  // namespace
@@ -142,7 +156,12 @@ AudioElementPluginTopView::AudioElementPluginTopView(
     const SpeakerMonitorData& monitorData)
     : PerspectiveRoomView(FaceLookup::getFaces(FaceLookup::kTop),
                           Coordinates::getTopViewTransform(),
-                          {SpeakerLookup::kLFE}, {}, monitorData) {};
+                          {SpeakerLookup::kLFE}, {}, monitorData) {
+  // Arrow keys reach keyPressed only once this view can hold focus. It takes
+  // focus on mouseDown rather than on construction, so opening the plugin does
+  // not steal it from whatever the host had focused.
+  setWantsKeyboardFocus(true);
+};
 
 const float AudioElementPluginTopView::getTrackScaling(
     const Coordinates::Point4D pt) const {
@@ -217,15 +236,19 @@ void AudioElementPluginTopView::writeDragPosition(
   juce::RangedAudioParameter* yParameter =
       positionParameter(AutoParamMetaData::yPosition);
   if (xParameter != nullptr) {
-    writeDragPositionParameter(xParameter, kTarget.x);
+    writePositionParameter(xParameter, kTarget.x);
   }
   if (yParameter != nullptr) {
-    writeDragPositionParameter(yParameter, kTarget.y);
+    writePositionParameter(yParameter, kTarget.y);
   }
 }
 
 void AudioElementPluginTopView::mouseDown(const juce::MouseEvent& event) {
   draggingSource_ = false;
+  // Any press in the panner takes focus, not just one that grabs the source:
+  // nudge is meant to work after the user has interacted with the panner at
+  // all, and a press that missed the marker is still that interaction.
+  grabKeyboardFocus();
   if (parameterTree_ == nullptr || transformedTracks_.empty()) {
     return;
   }
@@ -270,6 +293,66 @@ void AudioElementPluginTopView::mouseUp(const juce::MouseEvent& event) {
   if (yParameter != nullptr) {
     yParameter->endChangeGesture();
   }
+}
+
+void AudioElementPluginTopView::nudgeAxis(const PannerInput::Axis axis,
+                                          const int steps) {
+  if (parameterTree_ == nullptr || steps == 0) {
+    return;
+  }
+  juce::String parameterName;
+  int current = 0;
+  switch (axis) {
+    case PannerInput::Axis::kLeftRight:
+      parameterName = AutoParamMetaData::xPosition;
+      current = parameterTree_->getXPosition();
+      break;
+    case PannerInput::Axis::kFrontBack:
+      parameterName = AutoParamMetaData::yPosition;
+      current = parameterTree_->getYPosition();
+      break;
+    case PannerInput::Axis::kHeight:
+      parameterName = AutoParamMetaData::zPosition;
+      current = parameterTree_->getZPosition();
+      break;
+    case PannerInput::Axis::kNone:
+      return;
+  }
+
+  juce::RangedAudioParameter* parameter = positionParameter(parameterName);
+  if (parameter == nullptr) {
+    return;
+  }
+  // Stepped from the parameter's own current value, so the source is rendered
+  // from the parameter rather than from an accumulated position and
+  // ElevationListener's side effects stay visible.
+  writeSteppedPositionParameter(parameter, current + steps);
+}
+
+void AudioElementPluginTopView::mouseWheelMove(
+    const juce::MouseEvent& event, const juce::MouseWheelDetails& wheel) {
+  if (parameterTree_ == nullptr ||
+      PannerInput::elevationOwnsHeight(currentElevation_)) {
+    // Under a derived pattern ElevationListener recomputes height from x/y and
+    // would overwrite the notch before it was seen, so pass the event on
+    // rather than write a value that will not stick.
+    PerspectiveRoomView::mouseWheelMove(event, wheel);
+    return;
+  }
+  const int kSteps =
+      PannerInput::stepsForWheelDelta(wheel.deltaY, wheelAccumulator_);
+  nudgeAxis(PannerInput::Axis::kHeight, kSteps);
+}
+
+bool AudioElementPluginTopView::keyPressed(const juce::KeyPress& key) {
+  const PannerInput::Nudge kNudge =
+      PannerInput::nudgeForKeyCode(key.getKeyCode());
+  if (kNudge.axis == PannerInput::Axis::kNone) {
+    // Not a nudge -- let the host and the rest of the UI see the key.
+    return false;
+  }
+  nudgeAxis(kNudge.axis, kNudge.steps);
+  return true;
 }
 
 Coordinates::WindowData AudioElementPluginTopView::currentWindow() const {
