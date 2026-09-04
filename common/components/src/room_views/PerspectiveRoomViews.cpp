@@ -45,6 +45,22 @@ juce::Colour elevationFacingSurface() {
 constexpr float kOutlineThickness = 2.f;
 constexpr float kHeightIndicatorConnectorThickness = 2.f;
 
+// The marker's drawn diameter before depth scaling, shared by the draw and the
+// hit test.
+constexpr float kAudioSourceMarkerDiameter = 14.f;
+// Widens the grab target past the drawn edge.
+constexpr float kAudioSourceGrabMargin = 4.f;
+
+// setValueNotifyingHost takes a normalized value. Passing a raw position would
+// peg the parameter to its maximum.
+void writeDragPositionParameter(juce::RangedAudioParameter* parameter,
+                                const int value) {
+  const int kClamped =
+      std::clamp(value, AutoParamMetaData::positionRange_.first,
+                 AutoParamMetaData::positionRange_.second);
+  parameter->setValueNotifyingHost(parameter->convertTo0to1((float)kClamped));
+}
+
 }  // namespace
 
 TopView::TopView(const SpeakerMonitorData& monitorData,
@@ -142,7 +158,7 @@ void AudioElementPluginTopView::drawTrack(const DrawableTrack& track,
   float width;
   if (kTrackColour != EclipsaColours::speakerSilentFill) {
     float sf2 = 6 * (1 - std::abs(track.trackLoudness) / 60.f);
-    width = 14.f * track.sizeScale * sf2;
+    width = kAudioSourceMarkerDiameter * track.sizeScale * sf2;
     g.setColour(kTrackColour.withAlpha(0.5f));
     g.fillEllipse(track.pos.a[0] - width / 2, track.pos.a[1] - width / 2, width,
                   width);
@@ -150,7 +166,7 @@ void AudioElementPluginTopView::drawTrack(const DrawableTrack& track,
 
   // The panned audio element track center is blue independent of loudness.
   g.setColour(EclipsaColours::controlBlue);
-  width = 14.f * track.sizeScale;
+  width = kAudioSourceMarkerDiameter * track.sizeScale;
   g.fillEllipse(track.pos.a[0] - width / 2, track.pos.a[1] - width / 2, width,
                 width);
 }
@@ -160,13 +176,113 @@ void AudioElementPluginTopView::setElevationPattern(
   currentElevation_ = elevation;
 }
 
-void AudioElementPluginTopView::paint(juce::Graphics& g) {
-  Coordinates::WindowData wData = {
+juce::RangedAudioParameter* AudioElementPluginTopView::positionParameter(
+    const juce::String& parameterName) const {
+  if (parameterTree_ == nullptr) {
+    return nullptr;
+  }
+  return parameterTree_->getParameter(
+      AutoParamMetaData::getParameterIDFromName(parameterName).getParamID());
+}
+
+bool AudioElementPluginTopView::sourceMarkerContains(
+    const juce::Point<float>& windowPoint) const {
+  const DrawableTrack& kSource = transformedTracks_[0];
+  const float kRadius = kAudioSourceMarkerDiameter * kSource.sizeScale / 2.f +
+                        kAudioSourceGrabMargin;
+  return windowPoint.getDistanceFrom({kSource.pos.a[0], kSource.pos.a[1]}) <=
+         kRadius;
+}
+
+void AudioElementPluginTopView::writeDragPosition(
+    const juce::Point<float>& windowPoint) {
+  if (parameterTree_ == nullptr) {
+    return;
+  }
+  // Drag within the plane the source already occupies. ElevationListener moves
+  // the height afterwards under a non-Flat pattern.
+  const float kNdcUp =
+      Coordinates::toRoomNdc(0.f, 0.f, (float)parameterTree_->getZPosition())
+          .a[1];
+  const Coordinates::Point2D kWindowPoint = {windowPoint.x, windowPoint.y};
+  const Coordinates::Point4D kRoomNdc = Coordinates::fromTopViewWindow(
+      kTransformMat_, currentWindow(), kWindowPoint, kNdcUp);
+  const Coordinates::PositionParameters kTarget =
+      Coordinates::fromRoomNdc(kRoomNdc);
+
+  // Each event converts the pointer afresh, so no drift accumulates.
+  // ElevationListener owns the dome's circular clamp.
+  juce::RangedAudioParameter* xParameter =
+      positionParameter(AutoParamMetaData::xPosition);
+  juce::RangedAudioParameter* yParameter =
+      positionParameter(AutoParamMetaData::yPosition);
+  if (xParameter != nullptr) {
+    writeDragPositionParameter(xParameter, kTarget.x);
+  }
+  if (yParameter != nullptr) {
+    writeDragPositionParameter(yParameter, kTarget.y);
+  }
+}
+
+void AudioElementPluginTopView::mouseDown(const juce::MouseEvent& event) {
+  draggingSource_ = false;
+  if (parameterTree_ == nullptr || transformedTracks_.empty()) {
+    return;
+  }
+  // Only a press on the source starts a drag.
+  if (!sourceMarkerContains(event.position)) {
+    return;
+  }
+  draggingSource_ = true;
+
+  // Bracket the drag so the host records one continuous gesture.
+  juce::RangedAudioParameter* xParameter =
+      positionParameter(AutoParamMetaData::xPosition);
+  juce::RangedAudioParameter* yParameter =
+      positionParameter(AutoParamMetaData::yPosition);
+  if (xParameter != nullptr) {
+    xParameter->beginChangeGesture();
+  }
+  if (yParameter != nullptr) {
+    yParameter->beginChangeGesture();
+  }
+}
+
+void AudioElementPluginTopView::mouseDrag(const juce::MouseEvent& event) {
+  if (!draggingSource_) {
+    return;
+  }
+  writeDragPosition(event.position);
+}
+
+void AudioElementPluginTopView::mouseUp(const juce::MouseEvent& event) {
+  if (!draggingSource_) {
+    return;
+  }
+  draggingSource_ = false;
+  juce::RangedAudioParameter* xParameter =
+      positionParameter(AutoParamMetaData::xPosition);
+  juce::RangedAudioParameter* yParameter =
+      positionParameter(AutoParamMetaData::yPosition);
+  if (xParameter != nullptr) {
+    xParameter->endChangeGesture();
+  }
+  if (yParameter != nullptr) {
+    yParameter->endChangeGesture();
+  }
+}
+
+Coordinates::WindowData AudioElementPluginTopView::currentWindow() const {
+  return {
       .leftCornerX = 0.0f,
       .bottomCornerY = (float)getHeight(),
       .width = (float)getWidth(),
       .height = (float)getHeight(),
   };
+}
+
+void AudioElementPluginTopView::paint(juce::Graphics& g) {
+  const Coordinates::WindowData wData = currentWindow();
 
   PerspectiveRoomView::paint(g);
 

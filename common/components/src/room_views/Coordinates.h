@@ -96,6 +96,28 @@ Point4D toRoomNdc(const float x, const float y, const float z);
  */
 PositionParameters fromRoomNdc(const Point4D& ndcPoint);
 
+/**
+ * @brief Recover a room-view NDC point from a window position at a known
+ * height.
+ *
+ * The projection is perspective, so a window position names a ray through the
+ * room. The height selects a point on that ray.
+ *
+ * Inverts only a transform that separates its axes as getTopViewTransform
+ * does: w from the height, window x from left/right, window y from
+ * front/back.
+ *
+ * @param transformMat the same transform toWindow was called with
+ * @param windowData the same window data toWindow was called with
+ * @param windowPoint a position in window coordinates
+ * @param ndcUp the NDC height the result should sit at
+ * @return Point4D room-view NDC, with a[1] == ndcUp and w = 1, ready for
+ *         fromRoomNdc
+ */
+Point4D fromTopViewWindow(const Mat4& transformMat,
+                          const WindowData& windowData,
+                          const Point2D& windowPoint, const float ndcUp);
+
 constexpr Mat4 getRearViewTransform() {
   /**
    * Generated with the following code:

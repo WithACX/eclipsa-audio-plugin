@@ -19,6 +19,7 @@
 
 #include "PerspectiveRoomView.h"
 #include "components/src/room_views/HeightIndicator.h"
+#include "data_structures/src/AudioElementParameterTree.h"
 #include "data_structures/src/AudioElementSpatialLayout.h"
 #include "data_structures/src/Elevation.h"
 #include "data_structures/src/RepositoryCollection.h"
@@ -63,7 +64,25 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
     currentFlatHeight_ = Coordinates::toRoomNdc(0.f, 0.f, height).a[1];
   }
 
+  // Input handling stays inert until this is set.
+  void setParameterTree(AudioElementParameterTree* tree) {
+    parameterTree_ = tree;
+  }
+
+  // Dragging the source moves it in left/right and front/back.
+  void mouseDown(const juce::MouseEvent& event) override;
+  void mouseDrag(const juce::MouseEvent& event) override;
+  void mouseUp(const juce::MouseEvent& event) override;
+
  private:
+  // Shared by paint and the drag so both use one mapping.
+  Coordinates::WindowData currentWindow() const;
+  bool sourceMarkerContains(const juce::Point<float>& windowPoint) const;
+  // Gesture bracketing needs the parameter itself. The tree's setters go
+  // through getParameterAsValue and emit no gesture markers.
+  juce::RangedAudioParameter* positionParameter(
+      const juce::String& parameterName) const;
+  void writeDragPosition(const juce::Point<float>& windowPoint);
   float elevationHeightAt(float leftRight, float frontBack) const;
   Coordinates::Point4D indicatorPosition(
       const Coordinates::Point4D& sourceNdc) const;
@@ -90,4 +109,7 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   AudioElementSpatialLayout::Elevation currentElevation_ =
       AudioElementSpatialLayout::Elevation::kNone;
   float currentFlatHeight_ = 0.f;
+
+  AudioElementParameterTree* parameterTree_ = nullptr;
+  bool draggingSource_ = false;  // true between press and release
 };

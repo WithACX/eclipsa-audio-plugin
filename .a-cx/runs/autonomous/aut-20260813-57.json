@@ -2,7 +2,9 @@
   "run_id": "aut-20260813-57",
   "started_at": "2026-08-13T23:50:28Z",
   "posture": "autonomous",
-  "queue": [57],
+  "queue": [
+    57
+  ],
   "remainder": [],
   "dropped": [],
   "budget": {
@@ -29,38 +31,130 @@
   "resolved": {
     "profile": null,
     "posture": "autonomous",
-    "autonomous_merge": { "value": false, "source": "default" },
-    "chain_pr_review": { "value": false, "source": "default" },
-    "pr_review": { "value": "human", "source": "config:deliver.pr_review" },
+    "autonomous_merge": {
+      "value": false,
+      "source": "default"
+    },
+    "chain_pr_review": {
+      "value": false,
+      "source": "default"
+    },
+    "pr_review": {
+      "value": "human",
+      "source": "config:deliver.pr_review"
+    },
     "pr_wait": {
       "value": "block",
       "source": "default for pr_review human",
       "applicability": "NOT REACHED -- autonomous_merge false and chain_pr_review false mean the unit stops at the deliver-pr-review handoff, so no in-run merge point exists for a wait to sit at"
     },
-    "admin_bypass": { "value": true, "source": "config:deliver.admin_bypass" },
-    "admin_bypass_class_1": { "value": false, "source": "default" },
-    "cleanup": { "value": "authorized", "source": "default" },
-    "decision_policy": { "value": "capture", "source": "default" },
-    "isolation": { "value": "worktree", "source": "config:deliver.isolation" },
-    "definition_of_ready": { "value": "strict", "source": "default" },
-    "tdd": { "value": false, "source": "config:flags.tdd" },
-    "security_review": { "value": true, "source": "config:flags.security_review" },
-    "pr_wait_poll_seconds": { "value": 120, "source": "default (PROVISIONAL)" },
-    "pr_wait_timeout_minutes": { "value": 720, "source": "default (PROVISIONAL)" },
-    "max_review_rounds": { "value": 3, "source": "default (PROVISIONAL)" },
+    "admin_bypass": {
+      "value": true,
+      "source": "config:deliver.admin_bypass"
+    },
+    "admin_bypass_class_1": {
+      "value": false,
+      "source": "default"
+    },
+    "cleanup": {
+      "value": "authorized",
+      "source": "default"
+    },
+    "decision_policy": {
+      "value": "capture",
+      "source": "default"
+    },
+    "isolation": {
+      "value": "worktree",
+      "source": "config:deliver.isolation"
+    },
+    "definition_of_ready": {
+      "value": "strict",
+      "source": "default"
+    },
+    "tdd": {
+      "value": false,
+      "source": "config:flags.tdd"
+    },
+    "security_review": {
+      "value": true,
+      "source": "config:flags.security_review"
+    },
+    "pr_wait_poll_seconds": {
+      "value": 120,
+      "source": "default (PROVISIONAL)"
+    },
+    "pr_wait_timeout_minutes": {
+      "value": 720,
+      "source": "default (PROVISIONAL)"
+    },
+    "max_review_rounds": {
+      "value": 3,
+      "source": "default (PROVISIONAL)"
+    },
     "operator_stop_condition": "Invocation: 'stop once the PR is open for manual review and manual testing'. Consistent with the resolved posture above -- no override applied.",
     "routing": {
       "source": "bundled default (no deliver.models, no run_profiles)",
-      "delivery-unit": { "model": "opus", "tier": "reasoning", "effort": "medium", "source": "bundled default" },
-      "planning": { "model": "opus", "tier": "reasoning", "effort": "medium", "source": "bundled default" },
-      "planner": { "model": "opus", "tier": "reasoning", "effort": "medium", "source": "bundled default" },
-      "implementation": { "model": "sonnet", "tier": "balanced", "effort": "medium", "source": "bundled default" },
-      "review": { "model": "sonnet", "tier": "balanced", "effort": "medium", "source": "bundled default" },
-      "code-reviewer": { "model": "sonnet", "tier": "balanced", "effort": "medium", "source": "bundled default" },
-      "cpp-reviewer": { "model": "sonnet", "tier": "balanced", "effort": "medium", "source": "bundled default" },
-      "security_review": { "model": "sonnet", "tier": "balanced", "effort": "high", "source": "bundled default" },
-      "security-reviewer": { "model": "sonnet", "tier": "balanced", "effort": "high", "source": "bundled default" },
-      "observer": { "model": "haiku", "tier": "fast", "effort": "low", "source": "bundled default" }
+      "delivery-unit": {
+        "model": "opus",
+        "tier": "reasoning",
+        "effort": "medium",
+        "source": "bundled default"
+      },
+      "planning": {
+        "model": "opus",
+        "tier": "reasoning",
+        "effort": "medium",
+        "source": "bundled default"
+      },
+      "planner": {
+        "model": "opus",
+        "tier": "reasoning",
+        "effort": "medium",
+        "source": "bundled default"
+      },
+      "implementation": {
+        "model": "sonnet",
+        "tier": "balanced",
+        "effort": "medium",
+        "source": "bundled default"
+      },
+      "review": {
+        "model": "sonnet",
+        "tier": "balanced",
+        "effort": "medium",
+        "source": "bundled default"
+      },
+      "code-reviewer": {
+        "model": "sonnet",
+        "tier": "balanced",
+        "effort": "medium",
+        "source": "bundled default"
+      },
+      "cpp-reviewer": {
+        "model": "sonnet",
+        "tier": "balanced",
+        "effort": "medium",
+        "source": "bundled default"
+      },
+      "security_review": {
+        "model": "sonnet",
+        "tier": "balanced",
+        "effort": "high",
+        "source": "bundled default"
+      },
+      "security-reviewer": {
+        "model": "sonnet",
+        "tier": "balanced",
+        "effort": "high",
+        "source": "bundled default"
+      },
+      "observer": {
+        "model": "haiku",
+        "tier": "fast",
+        "effort": "low",
+        "source": "bundled default"
+      }
     },
     "preflight_notes": [
       "1a surface: Claude Code -- pass",
@@ -76,5 +170,100 @@
       "registry note: #56's claim and worktree are retained from run aut-20260813-56 despite that unit being delivered and merged. Does not affect #57."
     ]
   },
-  "units": []
+  "units": [
+    {
+      "issue": 57,
+      "queue_position": 0,
+      "derivation_depth": 0,
+      "dispatched_at": "2026-08-14T00:51:19Z",
+      "payload": {
+        "UNIT": "#57",
+        "OUTCOME": "merge-withheld",
+        "PR": "#23",
+        "MERGED": "none",
+        "BOARD": "Todo (Current Release Items) -- board write refused (token lacks the write `project` scope); `status:in-review` label carries the state",
+        "DERIVED": "#69",
+        "DECISIONS": "none",
+        "OBSERVED": "3",
+        "CAPTURED": "e48560f (4 files); 9cc2434 (1 file); 613e1c6 (1 file); 627d26a (2 files)",
+        "BLOCKER": "deliver-pr-review handoff -- PR #23 open, ready, CI green, awaiting `/deliver-pr-review 23` and the operator's manual DAW pass",
+        "RECORD": ".git/a-cx/runs/57.json"
+      },
+      "verification": {
+        "status": "verified",
+        "recorded_at": "2026-08-14T00:53:19Z",
+        "bucket": "deferred"
+      },
+      "orchestrator_verification": {
+        "outcome_recheck": "CONFIRMED -- gh pr view 23: state OPEN, mergedAt null, isDraft false, mergeable MERGEABLE. Matches OUTCOME: merge-withheld exactly; not merged and not closed-unmerged.",
+        "merge_withheld_cause": "Neither of the two causes the payload contract enumerates. There was no review-sensitive checkpoint and no pr_wait wait: this run resolved autonomous_merge false and chain_pr_review false, so the deliver-code contract terminates at the deliver-pr-review handoff by design. Recorded as the operator-requested terminal state, per the dispatch instruction.",
+        "pr_checks": "Clang Format SUCCESS; matrix.os SKIPPED. reviewDecision REVIEW_REQUIRED. No failing check.",
+        "derived": [
+          {
+            "issue": 69,
+            "exists": true,
+            "repo": "WithACX/eclipsa-audio-planning (correct tracker)",
+            "state": "OPEN",
+            "labels": [
+              "bug",
+              "area:ui"
+            ],
+            "body_markers": {
+              "Origin": "#57",
+              "Derivation-depth": "1",
+              "Consequence": "product-facing",
+              "Readiness": "ABSENT -- no autonomous-grant marker"
+            },
+            "queueable": false,
+            "queue_reason": "Not queued. Two independent reasons, both correct rather than defective: (1) no `Readiness: autonomous-grant (run aut-20260813-57)` marker, which the orchestrator requires before queueing a self-filed bug; (2) no `priority:*` label, which the buildable-bug shape requires. The missing priority label is CORRECT per derived-work.md 0-bis: `product-facing` does not earn a fast-lane priority, so the unit was right to apply none.",
+            "grant_check": "NOT REACHED -- no marker was written, so there is nothing to re-derive. Noted for completeness: had a marker been present it would have FAILED the Origin anti-laundering half, because that check requires the ledger to record the origin unit OUTCOME: merged with a confirmed sha, and #57 is merge-withheld.",
+            "investigate_label": false,
+            "DUPLICATE_FINDING": "#69 duplicates the already-open #67 ('[BUG] PerspectiveRoomView's display flags are read uninitialized in the audio element panner'). Same three flags (displaySpeakers_, displayTracks_, displayLabels_), same header lines PerspectiveRoomView.h:126-128, same uninitialized-read paths in paint(). #67 was open before this run and appeared in this run's own sweep exclusion list. The unit filed a duplicate rather than finding the existing issue. Reported, not acted on -- closing #69 is the operator's call.",
+            "board_status": "User Comms (For Mikko) -- the board default column, not Todo. The next run's derived-bug sweep will NOT collect it: it fails both board-status-todo and priority."
+          }
+        ],
+        "investigation_cap": {
+          "filed": 0,
+          "cap": 2,
+          "breach": false,
+          "method": "Derived from the returned DERIVED numbers, not from a self-reported count: #69 carries no `investigate` label."
+        },
+        "captured_shas": [
+          {
+            "sha": "e48560f",
+            "verdict": "ACCOUNTED",
+            "witness": "git for-each-ref --contains -> 57-height-indicator-top-down-panner, origin/57-height-indicator-top-down-panner",
+            "subject": "chore(a-cx): capture 4 internal work-product files",
+            "stat": "4 files changed, 254 insertions(+)"
+          },
+          {
+            "sha": "9cc2434",
+            "verdict": "ACCOUNTED",
+            "witness": "same branch, local and origin",
+            "subject": "chore(a-cx): capture 1 internal work-product file",
+            "stat": "1 file changed, 105 insertions(+)"
+          },
+          {
+            "sha": "613e1c6",
+            "verdict": "ACCOUNTED",
+            "witness": "same branch, local and origin",
+            "subject": "chore(a-cx): capture 1 internal work-product file",
+            "stat": "1 file changed, 2 insertions(+), 1 deletion(-)"
+          },
+          {
+            "sha": "627d26a",
+            "verdict": "ACCOUNTED",
+            "witness": "same branch, local and origin",
+            "subject": "chore(a-cx): capture 2 learnings",
+            "stat": "2 files changed, 81 insertions(+)"
+          }
+        ],
+        "capture_witness_note": "Correct witness class for an UNMERGED unit: the branch, which merge-withheld keeps by contract. The PR-commit-list witness applies only to a merged unit, and an origin/main ancestry test would be the wrong test here.",
+        "board_claim": "CONFIRMED HONEST -- #57 remains at board 'Todo (Current Release Items)'; the status:in-review label WAS applied. Label writes use the `repo` scope the token holds; board field writes need the `project` WRITE scope, and only `read:project` was granted this session. The unit reported the refusal accurately rather than claiming a move it did not make.",
+        "observed": "3 findings recorded rather than filed. Self-reported by the unit and not independently verifiable from here; the entries live in the unit record and .a-cx/observations.md.",
+        "ledger_anomaly": "The primary-tree ledger .a-cx/runs/autonomous/aut-20260813-57.json was REMOVED while the unit ran (directory mtime 17:43 local). A content-identical copy (5081 bytes, units: [], every resolved value intact) was present at .a-cx/worktrees/57-height-indicator-top-down-panner/.a-cx/runs/autonomous/. Restored from that copy before the record append. No units[] entry existed in the recovered file, so the pre-written-entry integrity case does not apply and nothing was verified against a forged entry.",
+        "verdict": "verified -- every independently checkable payload field held. The two findings below are about run QUALITY, not payload honesty: the duplicate derived issue (#69 vs #67) and the ledger removal."
+      }
+    }
+  ]
 }
