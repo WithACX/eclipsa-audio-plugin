@@ -213,6 +213,54 @@ bool AudioElementPluginTopView::sourceMarkerContains(
          kRadius;
 }
 
+bool AudioElementPluginTopView::snapToSpeakerAt(
+    const juce::Point<float>& windowPoint) {
+  if (parameterTree_ == nullptr) {
+    return false;
+  }
+  // setSpeakers only flags the vertices for recalculation, so the two lists
+  // are briefly out of step between a layout change and the next paint. An
+  // index resolved against a stale window list would name a different speaker.
+  if (speakers_.size() != transformedSpeakers_.size()) {
+    return false;
+  }
+
+  std::vector<PannerInput::SpeakerTarget> targets;
+  targets.reserve(transformedSpeakers_.size());
+  for (const DrawableSpeaker& spkr : transformedSpeakers_) {
+    targets.push_back({{spkr.pos.a[0], spkr.pos.a[1]}, speakerIsDrawn(spkr)});
+  }
+  const int kIndex = PannerInput::speakerIndexAt(targets, windowPoint);
+  if (kIndex == PannerInput::kNoSpeaker) {
+    return false;
+  }
+
+  const Coordinates::PositionParameters kTarget =
+      Coordinates::fromRoomNdc(speakers_[kIndex].pos);
+  juce::RangedAudioParameter* xParameter =
+      positionParameter(AutoParamMetaData::xPosition);
+  juce::RangedAudioParameter* yParameter =
+      positionParameter(AutoParamMetaData::yPosition);
+  if (xParameter != nullptr) {
+    writeSteppedPositionParameter(xParameter, kTarget.x);
+  }
+  if (yParameter != nullptr) {
+    writeSteppedPositionParameter(yParameter, kTarget.y);
+  }
+  // Under every other pattern height belongs to the pattern: ElevationListener
+  // derives it from the position just written, and under Dome it also pulls
+  // left/right and front/back back onto the sphere. Writing height here would
+  // fight that, and pre-clamping would duplicate math it already owns.
+  if (PannerInput::clickSetsHeight(currentElevation_)) {
+    juce::RangedAudioParameter* zParameter =
+        positionParameter(AutoParamMetaData::zPosition);
+    if (zParameter != nullptr) {
+      writeSteppedPositionParameter(zParameter, kTarget.z);
+    }
+  }
+  return true;
+}
+
 void AudioElementPluginTopView::writeDragPosition(
     const juce::Point<float>& windowPoint) {
   if (parameterTree_ == nullptr) {
@@ -249,11 +297,16 @@ void AudioElementPluginTopView::mouseDown(const juce::MouseEvent& event) {
   // nudge is meant to work after the user has interacted with the panner at
   // all, and a press that missed the marker is still that interaction.
   grabKeyboardFocus();
-  if (parameterTree_ == nullptr || transformedTracks_.empty()) {
+  if (parameterTree_ == nullptr) {
+    return;
+  }
+  // Tested before the source, so a press that lands on a speaker snaps rather
+  // than starting a drag even where the source is sitting on top of one.
+  if (snapToSpeakerAt(event.position)) {
     return;
   }
   // Only a press on the source starts a drag.
-  if (!sourceMarkerContains(event.position)) {
+  if (transformedTracks_.empty() || !sourceMarkerContains(event.position)) {
     return;
   }
   draggingSource_ = true;

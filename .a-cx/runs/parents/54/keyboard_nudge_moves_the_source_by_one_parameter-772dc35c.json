@@ -1,0 +1,7 @@
+{
+  "criterion": "Keyboard nudge moves the source by one parameter step per press and the\n  scroll wheel adjusts position; where a host does not deliver one of these\n  inputs it is recorded as a known limitation and the remaining inputs still\n  work.",
+  "verdict": "pass -- operator REAPER pass 2026-09-04: nudge moves one step per press (up toward the front) and the wheel adjusts height; delivered by PR #26. The non-delivering-host clause is PAN-02.4's (#62) to record",
+  "unit": 60,
+  "run_id": "deliver-code-60-20260904",
+  "recorded_at": "2026-09-04T20:04:05Z"
+}

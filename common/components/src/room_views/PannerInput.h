@@ -18,6 +18,8 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include <cmath>
+#include <limits>
+#include <vector>
 
 #include "data_structures/src/AudioElementSpatialLayout.h"
 
@@ -120,6 +122,83 @@ inline bool elevationOwnsHeight(
     default:
       return false;
   }
+}
+
+// The speaker rectangle drawSpeaker fills: 10x15, anchored half a width left
+// and half a height above the speaker's window position.
+constexpr float kSpeakerWidth = 10.f;
+constexpr float kSpeakerHeight = 15.f;
+// Widens the target past the drawn edge, as the source marker's grab margin
+// does.
+constexpr float kSpeakerHitMargin = 2.f;
+
+// One speaker as the hit test sees it: where it was drawn, and whether it was
+// drawn at all. An undrawn speaker is never a snap target -- the source must
+// not jump to something the user cannot see.
+struct SpeakerTarget {
+  juce::Point<float> pos;
+  bool drawn = true;
+};
+
+constexpr int kNoSpeaker = -1;
+
+/**
+ * @brief Index of the drawn speaker a press lands on, or kNoSpeaker.
+ *
+ * Returns an INDEX because a tag does not identify a speaker: several layouts
+ * repeat one (k3Point1Point2 lists kLowFreqEffects twice, and kLU045/kRU045
+ * reuse kLTF/kRTF). The caller's window-position and room-position lists are
+ * built one-to-one in the same order, so the index is what carries identity
+ * between them.
+ *
+ * Nearest centre wins where two rectangles overlap, so the speaker the user
+ * aimed at moves the source rather than whichever came first in the layout.
+ *
+ * @param targets the drawn speakers, in layout order
+ * @param windowPoint the press position in window coordinates
+ * @return int an index into targets, or kNoSpeaker
+ */
+inline int speakerIndexAt(const std::vector<SpeakerTarget>& targets,
+                          const juce::Point<float>& windowPoint) {
+  constexpr float kHalfWidth = kSpeakerWidth / 2.f + kSpeakerHitMargin;
+  constexpr float kHalfHeight = kSpeakerHeight / 2.f + kSpeakerHitMargin;
+
+  int nearest = kNoSpeaker;
+  float nearestDistance = std::numeric_limits<float>::max();
+  for (int i = 0; i < (int)targets.size(); ++i) {
+    if (!targets[i].drawn) {
+      continue;
+    }
+    const float kDx = windowPoint.x - targets[i].pos.x;
+    const float kDy = windowPoint.y - targets[i].pos.y;
+    if (std::abs(kDx) > kHalfWidth || std::abs(kDy) > kHalfHeight) {
+      continue;
+    }
+    const float kDistance = kDx * kDx + kDy * kDy;
+    if (kDistance < nearestDistance) {
+      nearest = i;
+      nearestDistance = kDistance;
+    }
+  }
+  return nearest;
+}
+
+/**
+ * @brief Whether a speaker click sets height as well as left/right and
+ * front/back.
+ *
+ * kNone is the only pattern that leaves height entirely to the user, so it is
+ * the only one where a click can place the source in all three dimensions.
+ * Under kFlat the source stays on the plane the pattern represents, and under
+ * the derived patterns ElevationListener recomputes height from the new
+ * position -- writing height in either case would fight the pattern.
+ *
+ * @param elevation the active elevation pattern
+ * @return bool true when a click writes the height parameter
+ */
+inline bool clickSetsHeight(
+    const AudioElementSpatialLayout::Elevation elevation) {
+  return elevation == AudioElementSpatialLayout::Elevation::kNone;
 }
 
 }  // namespace PannerInput
