@@ -45,25 +45,14 @@ juce::Colour elevationFacingSurface() {
 constexpr float kOutlineThickness = 2.f;
 constexpr float kHeightIndicatorConnectorThickness = 2.f;
 
-// The audio source marker's drawn diameter, before depth scaling. Shared by
-// the draw and the drag hit test so the grab target cannot drift away from the
-// circle the user can see. Named for the audio source rather than bare
-// `kMarkerDiameter` for the unity-build reason noted above.
+// The marker's drawn diameter before depth scaling, shared by the draw and the
+// hit test.
 constexpr float kAudioSourceMarkerDiameter = 14.f;
-// Extra grab radius on top of the drawn marker. A press a pixel or two off the
-// edge still reads as grabbing the source, which matters most when the marker
-// is at its smallest at the back of the room.
+// Widens the grab target past the drawn edge.
 constexpr float kAudioSourceGrabMargin = 4.f;
 
-// Write one position parameter from the drag path.
-//
-// setValueNotifyingHost takes a NORMALIZED 0..1 value, not the parameter's own
-// units, so a raw -50..50 would peg the parameter to its maximum. The existing
-// dial path is unaffected: getParameterAsValue().setValue() takes the value in
-// parameter units, which is one more reason the drag path stays separate.
-//
-// The clamp reads the parameter range rather than repeating its bounds, so an
-// axis can never be written outside the domain the parameter declares.
+// setValueNotifyingHost takes a normalized value. Passing a raw position would
+// peg the parameter to its maximum.
 void writeDragPositionParameter(juce::RangedAudioParameter* parameter,
                                 const int value) {
   const int kClamped =
@@ -210,9 +199,8 @@ void AudioElementPluginTopView::writeDragPosition(
   if (parameterTree_ == nullptr) {
     return;
   }
-  // Invert at the height the source already occupies, so the drag stays in its
-  // own horizontal plane. Under a non-Flat pattern ElevationListener moves the
-  // height afterwards; that is its job and the drag never writes z.
+  // Drag within the plane the source already occupies. ElevationListener moves
+  // the height afterwards under a non-Flat pattern.
   const float kNdcUp =
       Coordinates::toRoomNdc(0.f, 0.f, (float)parameterTree_->getZPosition())
           .a[1];
@@ -222,11 +210,8 @@ void AudioElementPluginTopView::writeDragPosition(
   const Coordinates::PositionParameters kTarget =
       Coordinates::fromRoomNdc(kRoomNdc);
 
-  // Every event is computed from the pointer rather than from the previous
-  // value, and fromRoomNdc has already quantized to the integer parameter
-  // domain, so no float error accumulates however long the drag runs.
-  // Clamping is per axis; the dome's circular clamp belongs to
-  // ElevationListener::getDomeElevationPtClamped and is never repeated here.
+  // Each event converts the pointer afresh, so no drift accumulates.
+  // ElevationListener owns the dome's circular clamp.
   juce::RangedAudioParameter* xParameter =
       positionParameter(AutoParamMetaData::xPosition);
   juce::RangedAudioParameter* yParameter =
@@ -244,18 +229,13 @@ void AudioElementPluginTopView::mouseDown(const juce::MouseEvent& event) {
   if (parameterTree_ == nullptr || transformedTracks_.empty()) {
     return;
   }
-  // A press must land on the source to move it. A press elsewhere in the room
-  // is not a request to teleport the source there -- that gesture is PAN-02.3's
-  // speaker click, and only for a speaker.
+  // Only a press on the source starts a drag.
   if (!sourceMarkerContains(event.position)) {
     return;
   }
   draggingSource_ = true;
 
-  // Bracket the whole drag so a host records one continuous automation gesture
-  // instead of a burst of unrelated writes. This is the only gesture-bracketed
-  // write in the codebase, deliberately: the numeric dials keep their existing
-  // ungestured path.
+  // Bracket the drag so the host records one continuous gesture.
   juce::RangedAudioParameter* xParameter =
       positionParameter(AutoParamMetaData::xPosition);
   juce::RangedAudioParameter* yParameter =
@@ -269,8 +249,6 @@ void AudioElementPluginTopView::mouseDown(const juce::MouseEvent& event) {
 }
 
 void AudioElementPluginTopView::mouseDrag(const juce::MouseEvent& event) {
-  // Inert unless this drag began on the source, so the bracket and the writes
-  // always belong to the same gesture.
   if (!draggingSource_) {
     return;
   }
