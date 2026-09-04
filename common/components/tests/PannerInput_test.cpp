@@ -31,9 +31,12 @@
 
 #include "components/src/room_views/Coordinates.h"
 #include "components/src/room_views/PannerInput.h"
+#include "components/src/room_views/SpeakerLookup.h"
 // clang-format on
 
 #include <gtest/gtest.h>
+
+#include <vector>
 
 namespace {
 
@@ -62,6 +65,33 @@ float windowX(const int leftRight, const int frontBack, const int height) {
              Coordinates::toRoomNdc((float)leftRight, (float)frontBack,
                                     (float)height))
       .a[0];
+}
+
+// Where a speaker declared in room-view NDC is drawn, under the real top-view
+// transform. Speaker hit-testing has to agree with the draw path, so the tests
+// project through it rather than restating window positions.
+juce::Point<float> speakerWindowPos(const Coordinates::Point4D& ndcPos) {
+  const Coordinates::Point2D kPos = Coordinates::toWindow(
+      Coordinates::getTopViewTransform(), kWindow, ndcPos);
+  return {kPos.a[0], kPos.a[1]};
+}
+
+// The top view's hidden set: LFE sits at the room origin and is not a
+// positional target, so AudioElementPluginTopView never draws it.
+bool drawnInTopView(const SpeakerLookup::RoomViewSpeaker& speaker) {
+  return speaker.tag != SpeakerLookup::kLFE;
+}
+
+// The speaker targets a layout presents to the panner, in layout order.
+std::vector<PannerInput::SpeakerTarget> targetsForLayout(
+    const Speakers::AudioElementSpeakerLayout layout) {
+  std::vector<PannerInput::SpeakerTarget> targets;
+  for (const SpeakerLookup::RoomViewSpeaker& kSpeaker :
+       SpeakerLookup::getRoomViewSpeakers(layout)) {
+    targets.push_back(
+        {speakerWindowPos(kSpeaker.pos), drawnInTopView(kSpeaker)});
+  }
+  return targets;
 }
 
 }  // namespace
@@ -199,4 +229,140 @@ TEST(PannerInputTest, derivedElevationPatternsOwnHeight) {
 TEST(PannerInputTest, flatAndNoPatternLeaveHeightToTheUser) {
   EXPECT_FALSE(PannerInput::elevationOwnsHeight(Elevation::kNone));
   EXPECT_FALSE(PannerInput::elevationOwnsHeight(Elevation::kFlat));
+}
+
+// A press inside a speaker's drawn rectangle selects it.
+TEST(PannerInputTest, aPressOnASpeakerSelectsIt) {
+  const std::vector<PannerInput::SpeakerTarget> kTargets = {
+      {{100.f, 100.f}, true}};
+
+  EXPECT_EQ(PannerInput::speakerIndexAt(kTargets, {100.f, 100.f}), 0);
+  EXPECT_EQ(PannerInput::speakerIndexAt(
+                kTargets, {100.f + PannerInput::kSpeakerWidth / 2.f, 100.f}),
+            0);
+  EXPECT_EQ(PannerInput::speakerIndexAt(
+                kTargets, {100.f, 100.f - PannerInput::kSpeakerHeight / 2.f}),
+            0);
+}
+
+// A press outside the rectangle and its margin selects nothing, so a press in
+// open floor still reaches the drag path.
+TEST(PannerInputTest, aPressAwayFromEverySpeakerSelectsNothing) {
+  const std::vector<PannerInput::SpeakerTarget> kTargets = {
+      {{100.f, 100.f}, true}};
+  const float kOutsideX = 100.f + PannerInput::kSpeakerWidth / 2.f +
+                          PannerInput::kSpeakerHitMargin + 1.f;
+  const float kOutsideY = 100.f + PannerInput::kSpeakerHeight / 2.f +
+                          PannerInput::kSpeakerHitMargin + 1.f;
+
+  EXPECT_EQ(PannerInput::speakerIndexAt(kTargets, {kOutsideX, 100.f}),
+            PannerInput::kNoSpeaker);
+  EXPECT_EQ(PannerInput::speakerIndexAt(kTargets, {100.f, kOutsideY}),
+            PannerInput::kNoSpeaker);
+}
+
+// An undrawn speaker is never a snap target, whatever it overlaps.
+TEST(PannerInputTest, undrawnSpeakersAreNotSelectable) {
+  const std::vector<PannerInput::SpeakerTarget> kTargets = {
+      {{100.f, 100.f}, false}};
+
+  EXPECT_EQ(PannerInput::speakerIndexAt(kTargets, {100.f, 100.f}),
+            PannerInput::kNoSpeaker);
+}
+
+// Where two speakers overlap, the one whose centre is nearer wins.
+TEST(PannerInputTest, theNearerSpeakerWinsAnOverlap) {
+  const std::vector<PannerInput::SpeakerTarget> kTargets = {
+      {{100.f, 100.f}, true}, {{104.f, 100.f}, true}};
+
+  EXPECT_EQ(PannerInput::speakerIndexAt(kTargets, {101.f, 100.f}), 0);
+  EXPECT_EQ(PannerInput::speakerIndexAt(kTargets, {103.f, 100.f}), 1);
+}
+
+// A layout that repeats a tag still resolves each drawn speaker to its own
+// entry: k3Point1Point2 lists kLowFreqEffects twice, so a tag cannot identify
+// one and only the index can.
+TEST(PannerInputTest, aRepeatedTagStillSelectsTheRightSpeaker) {
+  const std::vector<SpeakerLookup::RoomViewSpeaker> kSpeakers =
+      SpeakerLookup::getRoomViewSpeakers(Speakers::k3Point1Point2);
+  const std::vector<PannerInput::SpeakerTarget> kTargets =
+      targetsForLayout(Speakers::k3Point1Point2);
+
+  int repeatedTags = 0;
+  for (size_t i = 0; i < kSpeakers.size(); ++i) {
+    for (size_t j = i + 1; j < kSpeakers.size(); ++j) {
+      repeatedTags += kSpeakers[i].tag == kSpeakers[j].tag ? 1 : 0;
+    }
+  }
+  ASSERT_GT(repeatedTags, 0);
+
+  for (size_t i = 0; i < kSpeakers.size(); ++i) {
+    if (!kTargets[i].drawn) {
+      continue;
+    }
+    EXPECT_EQ(PannerInput::speakerIndexAt(kTargets, kTargets[i].pos), (int)i);
+  }
+}
+
+// LFE is repeated in that layout and hidden in both places, so neither entry
+// can pull the source to the room origin.
+TEST(PannerInputTest, aHiddenSpeakerIsSkippedAtEveryIndexItAppears) {
+  const std::vector<SpeakerLookup::RoomViewSpeaker> kSpeakers =
+      SpeakerLookup::getRoomViewSpeakers(Speakers::k3Point1Point2);
+  const std::vector<PannerInput::SpeakerTarget> kTargets =
+      targetsForLayout(Speakers::k3Point1Point2);
+
+  int hidden = 0;
+  for (size_t i = 0; i < kSpeakers.size(); ++i) {
+    if (kSpeakers[i].tag != SpeakerLookup::kLFE) {
+      continue;
+    }
+    ++hidden;
+    EXPECT_NE(PannerInput::speakerIndexAt(kTargets, kTargets[i].pos), (int)i);
+  }
+  EXPECT_EQ(hidden, 2);
+}
+
+// The index the hit test returns reaches the speaker's own room position, so
+// the click writes where that speaker actually is.
+TEST(PannerInputTest, theSelectedIndexNamesThatSpeakersPosition) {
+  const std::vector<SpeakerLookup::RoomViewSpeaker> kSpeakers =
+      SpeakerLookup::getRoomViewSpeakers(Speakers::k5Point1Point4);
+  const std::vector<PannerInput::SpeakerTarget> kTargets =
+      targetsForLayout(Speakers::k5Point1Point4);
+
+  for (size_t i = 0; i < kSpeakers.size(); ++i) {
+    if (!kTargets[i].drawn) {
+      continue;
+    }
+    const int kIndex = PannerInput::speakerIndexAt(kTargets, kTargets[i].pos);
+    ASSERT_NE(kIndex, PannerInput::kNoSpeaker);
+    const Coordinates::PositionParameters kSelected =
+        Coordinates::fromRoomNdc(kSpeakers[kIndex].pos);
+    const Coordinates::PositionParameters kExpected =
+        Coordinates::fromRoomNdc(kSpeakers[i].pos);
+    EXPECT_EQ(kSelected.x, kExpected.x);
+    EXPECT_EQ(kSelected.y, kExpected.y);
+    EXPECT_EQ(kSelected.z, kExpected.z);
+  }
+}
+
+// A top-layer speaker carries a non-zero height, which is what a click under
+// no elevation pattern writes to the height parameter.
+TEST(PannerInputTest, aTopLayerSpeakerCarriesANonZeroHeight) {
+  const Coordinates::PositionParameters kTopFront =
+      Coordinates::fromRoomNdc(SpeakerLookup::kLeftTopFront.pos);
+
+  EXPECT_EQ(kTopFront.z, 25);
+}
+
+// Only kNone leaves height to the click. Flat holds the source on its plane,
+// and the derived patterns compute height from the position instead.
+TEST(PannerInputTest, onlyNoPatternLetsAClickSetHeight) {
+  EXPECT_TRUE(PannerInput::clickSetsHeight(Elevation::kNone));
+  EXPECT_FALSE(PannerInput::clickSetsHeight(Elevation::kFlat));
+  EXPECT_FALSE(PannerInput::clickSetsHeight(Elevation::kTent));
+  EXPECT_FALSE(PannerInput::clickSetsHeight(Elevation::kArch));
+  EXPECT_FALSE(PannerInput::clickSetsHeight(Elevation::kDome));
+  EXPECT_FALSE(PannerInput::clickSetsHeight(Elevation::kCurve));
 }

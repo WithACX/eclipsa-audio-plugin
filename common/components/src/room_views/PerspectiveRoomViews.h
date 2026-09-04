@@ -70,7 +70,8 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
     parameterTree_ = tree;
   }
 
-  // Dragging the source moves it in left/right and front/back.
+  // A press on a drawn speaker snaps the source to it; a press on the source
+  // starts a drag in left/right and front/back.
   void mouseDown(const juce::MouseEvent& event) override;
   void mouseDrag(const juce::MouseEvent& event) override;
   void mouseUp(const juce::MouseEvent& event) override;
@@ -89,6 +90,9 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   // Shared by paint and the drag so both use one mapping.
   Coordinates::WindowData currentWindow() const;
   bool sourceMarkerContains(const juce::Point<float>& windowPoint) const;
+  // Writes the position of the speaker under windowPoint, if any. Reports
+  // whether it hit, so mouseDown can leave the drag unstarted.
+  bool snapToSpeakerAt(const juce::Point<float>& windowPoint);
   // Gesture bracketing needs the parameter itself. The tree's setters go
   // through getParameterAsValue and emit no gesture markers.
   juce::RangedAudioParameter* positionParameter(
