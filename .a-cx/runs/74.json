@@ -1,0 +1,41 @@
+{
+  "unit": 74,
+  "tracker": "WithACX/eclipsa-audio-planning",
+  "repo_target": "WithACX/eclipsa-audio-plugin (resolved from origin)",
+  "mode": "standard",
+  "origin": "discovered during manual-execution task #62 (PAN-02.4), reported by the operator",
+  "branch": "74-dome-clamp-stale-position",
+  "worktree": ".a-cx/worktrees/74-dome-clamp-stale-position",
+  "pr": "WithACX/eclipsa-audio-plugin#29 (draft)",
+  "board": "In Progress (project 1 'Groove'), assigned BrandenAvalonCx",
+  "gates": {
+    "routing_preflight": "exit 0 -- 0 entries checked (no deliver.models declared)",
+    "closed_issue_gate": "n/a -- issue created by this run, open",
+    "prior_attempt_check": "no prior closed-unmerged PRs; open PR #28 (issue #61) is MERGEABLE and unrelated",
+    "premise_gate": "n/a -- premise authored by this run against the tree it read",
+    "blocked_by": "none",
+    "readiness": "status:ready at creation",
+    "type_conformance": "bug, filed on the repo bug.yml template",
+    "completion_gate": "capture --check exit 0 after the observer flush"
+  },
+  "root_cause": "AudioElementParameterTree accessors read and wrote APVTS's value tree, which APVTS refreshes only from its own timer (20-500 ms, backed off to 500 ms while idle). ElevationListener's dome clamp therefore validated the pre-drag position, so a fast drag escaped the circle; a stale-equal tree property also made ValueTree::setProperty drop a correction or a dial edit.",
+  "changes": [
+    "common/data_structures/src/AudioElementParameterTree.h -- read via getRawParameterValue, write via setValueNotifyingHost; new setParameterValue for name-carrying controls",
+    "common/components/src/room_views/PannerInput.h -- clampToElevationPlan, radial and truncating, dome only",
+    "common/components/src/room_views/PerspectiveRoomViews.cpp -- writeDragPosition clamps before publishing",
+    "audioelementplugin/src/screens/PositionSelectionScreen.cpp -- dial writes through the parameter"
+  ],
+  "tests": {
+    "added": [
+      "common/processors/tests/ElevationClamp_test.cpp (5 tests, new target test_elevation_clamp)",
+      "common/components/tests/PannerInput_test.cpp (6 tests for clampToElevationPlan)"
+    ],
+    "local_run": "cmake --build --target eclipsa_tests exit 0; ctest serial 356/356 passed",
+    "regression_proof": "reverted the accessor change and rebuilt: ElevationClamp.positionReadsSeeTheParameterWriteImmediately, .domeClampsATwoAxisDragOntoTheCircle and .domeHoldsAcrossABurstOfDragEvents fail, the dome case at kRadius 67.27 vs a 51 bound",
+    "test_defect_found": "the first draft asserted through getXPosition, the accessor under test, and so passed against the broken build; assertions now read the RangedAudioParameter directly"
+  },
+  "ci": "acx-dev-ci Clang Format pass; the build+ctest matrix is workflow_dispatch-only on this repo, so CI green proves formatting only -- compilation and tests were run locally",
+  "closing_link": "closingIssuesReferences is empty by design: detached topology, the tracker is a different repo and GitHub does not auto-close cross-repo. Closure is manual at board flow.",
+  "not_covered": "the visual result in a DAW -- #62 step 9 (dome drag pins without oscillating) and step 5 (recorded automation envelope) remain that task's observations",
+  "carried_forward": "MEMORY.md plus three observer learnings written by this run's flush, and .a-cx/runs/61.json left uncommitted by an earlier run"
+}

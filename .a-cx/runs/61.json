@@ -1,0 +1,70 @@
+{
+  "issue": 61,
+  "key": "[PAN-02.3]",
+  "run_id": "dc-20260904-61",
+  "mode": "standard",
+  "posture": "attended",
+  "repo_target": "WithACX/eclipsa-audio-plugin",
+  "tracker_repo": "WithACX/eclipsa-audio-planning",
+  "branch": "61-snap-source-to-clicked-speaker",
+  "worktree": ".a-cx/worktrees/61-snap-source-to-clicked-speaker--dc-20260904-61",
+  "outcome": "pr-open",
+  "pr": 28,
+  "pr_state": "draft",
+  "merged": false,
+  "board": "#61 In Progress (draft PR keeps it there); #54 already In Progress",
+  "assigned": ["#61 BrandenAvalonCx (verified)", "#54 BrandenAvalonCx (verified)"],
+  "gates": {
+    "routing_preflight": "pass (0 entries)",
+    "closed_issue": "pass -- open, no sub-issues",
+    "prior_attempt": "none",
+    "family_expansion": "family of one",
+    "premise_gate": {
+      "disposition": "clean",
+      "load_bearing_disposition": "clean",
+      "parked_days": 24.9,
+      "tier2": "unavailable -- no measurement tool declared"
+    },
+    "blocked_by": "pass -- #59 closed",
+    "readiness": "READY -- status:ready, priority:1-high, Estimate 3",
+    "type_conformance": "pass -- feature request, key prefix present",
+    "blocker_gate": "pass -- no open blockers at PR creation",
+    "closing_list_guard": "pass",
+    "closing_link_verification": "pass -- intended set empty (detached topology), actual []",
+    "ci_completion_gate": "pass -- Clang Format green on head df7f0b2; build+ctest matrix is workflow_dispatch-only",
+    "completion_gate": "pass -- capture --check exit 0 after flush"
+  },
+  "flush": "observer-loop.py --once ran; produced 4 learnings, captured as df7f0b2",
+  "carry_forward": {
+    "capture_sha": "4979590",
+    "paths": 10,
+    "base_ref_unchanged": true,
+    "index_unchanged": true,
+    "withheld": [".a-cx/learnings/MEMORY.md -- no YAML frontmatter, needs a human"],
+    "released_from_primary": 10
+  },
+  "commits": [
+    "4979590 chore(a-cx): capture 10 internal work-product files (carry-forward, branch base)",
+    "35f3ab8 feat(room_views): snap the panner source to a clicked speaker",
+    "df7f0b2 chore(a-cx): capture 4 learnings"
+  ],
+  "verification": {
+    "clang_format": "23.1.0 pinned venv, --dry-run -Werror clean across common/, rendererplugin/, audioelementplugin/",
+    "build": "cmake Unix Makefiles, Release, macos.cmake toolchain, -DINTERNAL_TEST=ON, target eclipsa_tests -- clean",
+    "ctest": "354/354 passed (serial), including 9 new PannerInputTest speaker cases"
+  },
+  "decisions": [
+    "Parent #54's acceptance criterion (a click switches elevation to Flat and sets all three axes) contradicts #61, which forbids changing the pattern. Operator chose: build #61 as written, amend #54 later. #54 NOT edited this run."
+  ],
+  "derived_issues": [],
+  "criteria": "not ticked back -- issue not closed this run (PR open, unmerged)",
+  "blocker": null,
+  "next_step": "/deliver-pr-review 28",
+  "notes": [
+    "Detached topology: PRs in WithACX/eclipsa-audio-plugin, issues in WithACX/eclipsa-audio-planning. Cross-repo closing keywords do not register, so closingIssuesReferences is [] by design -- #61 is closed manually on merge.",
+    "#54 cites 'Plan: .a-cx/plan/free-form-pan/', which exists in neither repo. Advisory.",
+    "LFS false positives excluded from staging: third_party/obr/lib/obr.dylib, third_party/obr/lib/Windows/Release/obr.dll (Git hash == File hash).",
+    "Worktree and run-registry claim intentionally retained for the review round; not torn down.",
+    "Off-branch capture used commit-tree, so no pre-commit hook (validate-learnings.py --fix) ran over the 10 adopted files; the command applied its own em-dash normalization to 1 of them."
+  ]
+}
