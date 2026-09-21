@@ -206,16 +206,14 @@ inline bool clickSetsHeight(
  * @brief Clamp a pointer target onto the floor plan the elevation pattern
  *        allows.
  *
- * Applied before the position is written, not after. ElevationListener also
- * holds the dome to its circle, but it only sees a position once that position
- * is already the parameter's value, so a drag past the rim reaches the host's
- * automation before anything corrects it. The listener also holds whichever
- * axis changed last and gives on the other -- right for a single dial edit,
- * wrong for a pointer, which moves both axes at once and whose nearest legal
- * point is the radial one.
+ * Call this before writing, not after. ElevationListener bounds the dome too,
+ * but only once the position is the parameter's value, so a correction there
+ * has already been published to the host. It also gives on whichever axis did
+ * not just change, which suits a single dial edit; a pointer moves both at
+ * once, so its nearest legal point is the radial one.
  *
- * Truncates rather than rounds, so the quantized result cannot land back
- * outside the circle and leave the listener a correction to make.
+ * Truncates rather than rounds, so the quantized result stays inside the circle
+ * and leaves nothing to correct.
  *
  * @param elevation the active elevation pattern
  * @param target a position in parameter space
@@ -225,8 +223,8 @@ inline bool clickSetsHeight(
 inline Coordinates::PositionParameters clampToElevationPlan(
     const AudioElementSpatialLayout::Elevation elevation,
     const Coordinates::PositionParameters target) {
-  // Only the dome constrains the floor plan. The others are height fields over
-  // the whole room, and height is not the caller's to set under them.
+  // Only the dome bounds the floor plan; the others are height fields over the
+  // whole room.
   if (elevation != AudioElementSpatialLayout::Elevation::kDome) {
     return target;
   }

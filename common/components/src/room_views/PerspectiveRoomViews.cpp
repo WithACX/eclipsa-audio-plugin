@@ -274,8 +274,8 @@ void AudioElementPluginTopView::writeDragPosition(
   const Coordinates::Point2D kWindowPoint = {windowPoint.x, windowPoint.y};
   const Coordinates::Point4D kRoomNdc = Coordinates::fromTopViewWindow(
       kTransformMat_, currentWindow(), kWindowPoint, kNdcUp);
-  // Clamped before the write: a position published first and corrected by
-  // ElevationListener afterwards has already been recorded by the host.
+  // Clamped before the write: a correction made after it has already been
+  // published to the host.
   const Coordinates::PositionParameters kTarget =
       PannerInput::clampToElevationPlan(currentElevation_,
                                         Coordinates::fromRoomNdc(kRoomNdc));

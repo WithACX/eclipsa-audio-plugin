@@ -397,9 +397,8 @@ TEST(PannerInputTest, domeLeavesAnInsideTargetAlone) {
 }
 
 // No target, anywhere in or beyond the room, comes back outside the circle.
-// Truncating toward the centre is what guarantees it: rounding can push a point
-// on the boundary back out, and ElevationListener would then correct a position
-// the drag had already published.
+// Truncating toward the centre is what guarantees it; rounding can push a point
+// on the boundary back out.
 TEST(PannerInputTest, domeNeverReturnsAPointOutsideTheCircle) {
   for (int x = -80; x <= 80; ++x) {
     for (int y = -80; y <= 80; ++y) {
