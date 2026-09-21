@@ -274,11 +274,13 @@ void AudioElementPluginTopView::writeDragPosition(
   const Coordinates::Point2D kWindowPoint = {windowPoint.x, windowPoint.y};
   const Coordinates::Point4D kRoomNdc = Coordinates::fromTopViewWindow(
       kTransformMat_, currentWindow(), kWindowPoint, kNdcUp);
+  // Clamped before the write: a position published first and corrected by
+  // ElevationListener afterwards has already been recorded by the host.
   const Coordinates::PositionParameters kTarget =
-      Coordinates::fromRoomNdc(kRoomNdc);
+      PannerInput::clampToElevationPlan(currentElevation_,
+                                        Coordinates::fromRoomNdc(kRoomNdc));
 
   // Each event converts the pointer afresh, so no drift accumulates.
-  // ElevationListener owns the dome's circular clamp.
   juce::RangedAudioParameter* xParameter =
       positionParameter(AutoParamMetaData::xPosition);
   juce::RangedAudioParameter* yParameter =
