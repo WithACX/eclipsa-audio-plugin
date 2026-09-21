@@ -19,6 +19,7 @@
 
 #include <cmath>
 
+#include "Coordinates.h"
 #include "data_structures/src/AudioElementSpatialLayout.h"
 
 // Keyboard and scroll-wheel input mapping for the audio element panner.
@@ -120,6 +121,43 @@ inline bool elevationOwnsHeight(
     default:
       return false;
   }
+}
+
+/**
+ * @brief Clamp a pointer target onto the floor plan the elevation pattern
+ *        allows.
+ *
+ * Applied before the position is written, not after. ElevationListener also
+ * holds the dome to its circle, but it only sees a position once that position
+ * is already the parameter's value, so a drag past the rim reaches the host's
+ * automation before anything corrects it. The listener also holds whichever
+ * axis changed last and gives on the other -- right for a single dial edit,
+ * wrong for a pointer, which moves both axes at once and whose nearest legal
+ * point is the radial one.
+ *
+ * Truncates rather than rounds, so the quantized result cannot land back
+ * outside the circle and leave the listener a correction to make.
+ *
+ * @param elevation the active elevation pattern
+ * @param target a position in parameter space
+ * @return Coordinates::PositionParameters target unchanged, or the nearest
+ *         position the pattern allows
+ */
+inline Coordinates::PositionParameters clampToElevationPlan(
+    const AudioElementSpatialLayout::Elevation elevation,
+    const Coordinates::PositionParameters target) {
+  // Only the dome constrains the floor plan. The others are height fields over
+  // the whole room, and height is not the caller's to set under them.
+  if (elevation != AudioElementSpatialLayout::Elevation::kDome) {
+    return target;
+  }
+  const float kRadius = std::hypot((float)target.x, (float)target.y);
+  if (kRadius <= Coordinates::kPositionExtent) {
+    return target;
+  }
+  const float kScale = Coordinates::kPositionExtent / kRadius;
+  return {(int)std::trunc(target.x * kScale),
+          (int)std::trunc(target.y * kScale), target.z};
 }
 
 }  // namespace PannerInput
