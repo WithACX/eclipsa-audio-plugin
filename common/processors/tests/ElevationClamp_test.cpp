@@ -14,14 +14,11 @@
 
 // ElevationListener against a real AudioProcessorValueTreeState.
 //
-// The geometry the listener applies is covered by ElevationGeometry_test; what
-// is covered here is the plumbing it reads and writes through, which is where
-// the dome boundary was escaping. APVTS copies parameter values into its value
-// tree only from its own timer, and these tests run with no message loop, so
-// the timer never fires -- which is the exaggerated form of what a fast drag
-// sees in a host, where the timer has backed off to 500 ms when the gesture
-// starts. Anything reading the tree therefore reads the position the source
-// had before the drag, and a clamp built on that read has nothing to clamp.
+// The geometry it applies is covered by ElevationGeometry_test; covered here is
+// the plumbing it reads and writes through. The value tree is refreshed from a
+// timer that never fires without a message loop, so these tests hold a lagging
+// tree read permanently open -- the state a host reaches for as long as half a
+// second once that timer has idled.
 
 #include <gtest/gtest.h>
 
@@ -84,9 +81,9 @@ struct PannerFixture {
   ElevationListener listener;
 };
 
-// A parameter write is visible to the tree's own getters immediately, with no
-// message loop to flush APVTS's value tree. Every clamp and every read-back in
-// the panner depends on this.
+// A parameter write is visible to the accessors immediately, with no message
+// loop to flush the value tree. Every clamp and read-back in the panner
+// depends on this.
 TEST(ElevationClamp, positionReadsSeeTheParameterWriteImmediately) {
   PannerFixture fixture(AudioElementSpatialLayout::Elevation::kFlat);
 

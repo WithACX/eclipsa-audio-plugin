@@ -122,21 +122,19 @@ class AudioElementParameterTree : public juce::AudioProcessorValueTreeState {
   }
 
  private:
-  // Reads and writes go to the parameter, never to the value tree behind
-  // getParameterAsValue. APVTS copies parameter values into that tree only
-  // from its own timer, which backs off to 500 ms while nothing is changing,
-  // so a tree read inside a parameter listener still sees the value from
-  // before the change that woke it -- which let a fast drag past the dome
-  // boundary be clamped against the pre-drag position and stand. The tree is
-  // still what gets persisted; copyState flushes it before copying.
+  // Reads the parameter itself, not the value tree behind getParameterAsValue.
+  // AudioProcessorValueTreeState refreshes that tree from its own timer, which
+  // idles at half a second, so a tree read can lag the parameter by that much
+  // -- including inside a parameter listener, which runs before the refresh.
+  // The tree is still what gets persisted; copyState flushes it first.
   float read(const juce::String& parameterName) const {
     const std::atomic<float>* kValue = getRawParameterValue(parameterName);
     return kValue == nullptr ? 0.f : kValue->load();
   }
 
-  // Writing the tree property instead would be dropped whenever the stale tree
-  // already held `value`, leaving the parameter at the value the caller meant
-  // to replace.
+  // Writes the parameter for the same reason, and because setting a tree
+  // property is a no-op when the lagging property already holds `value`,
+  // leaving the parameter at what the caller meant to replace.
   void write(const juce::String& parameterName, const float value) {
     juce::RangedAudioParameter* parameter = getParameter(parameterName);
     if (parameter != nullptr) {

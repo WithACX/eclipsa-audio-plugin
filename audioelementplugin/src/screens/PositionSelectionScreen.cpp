@@ -32,10 +32,8 @@ PositionSelectionScreen::createDialWithChevrons(
   dial->setTitle(title);
   addAndMakeVisible(dial.get());
   dial.get()->setValueUpdatedCallback([this, title](int newVal) {
-    // Through the parameter, not the value tree: APVTS refreshes that tree on
-    // a timer, and a tree write is dropped when the stale property already
-    // holds newVal -- which silently ignored a dial edit back to a value the
-    // source had moved away from since the last flush.
+    // Not getParameterAsValue -- see AudioElementParameterTree's accessors for
+    // why a value tree write can be dropped.
     parameterTree_.setParameterValue(title, (float)newVal);
   });
   return dial;
