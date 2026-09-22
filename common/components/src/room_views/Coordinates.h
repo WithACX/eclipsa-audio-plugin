@@ -76,6 +76,28 @@ Point4D toRoomNdc(const float x, const float y, const float z);
  */
 PositionParameters fromRoomNdc(const Point4D& ndcPoint);
 
+// The plane the panner positions the source on under a pattern whose
+// projected position is not monotonic in plan position. Drawing, hit-testing
+// and dragging on one FIXED plane makes a screen position carry the plan
+// position alone, so one screen point names exactly one position. Reading the
+// plane from the source's own height instead closes a feedback loop through
+// ElevationListener, which diverges wherever the projection folds.
+//
+// It is the room's floor, which is where the dome's footprint is drawn, so the
+// drawn footprint is exactly the bound the source is held inside.
+constexpr float kPlanPlaneUp = -1.f;
+
+/**
+ * @brief Move a room-view NDC point onto the plan plane.
+ *
+ * Keeps left/right and front/back and discards the height, so the result
+ * projects to the position's plan location and nothing else.
+ *
+ * @param ndcPoint a room-view NDC point
+ * @return Point4D the same plan position at kPlanPlaneUp, w = 1
+ */
+Point4D toPlanPlane(const Point4D& ndcPoint);
+
 /**
  * @brief Recover a room-view NDC point from a window position at a known
  * height.

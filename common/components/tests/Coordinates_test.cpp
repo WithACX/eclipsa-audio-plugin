@@ -23,6 +23,8 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
+#include <cmath>
 #include <cstdlib>
 
 namespace {
@@ -193,5 +195,175 @@ TEST(test_room_coordinates, topViewWindowInversePreservesTheGivenHeight) {
     EXPECT_NEAR(kRoomNdc.a[1], kNdcUp, kTolerance);
     EXPECT_NEAR(kRoomNdc.a[3], 1.f, kTolerance);
     EXPECT_EQ(Coordinates::fromRoomNdc(kRoomNdc).z, z);
+  }
+}
+
+namespace {
+// The dome's surface, as ElevationListener derives it.
+float domeHeightAt(const float planRadius) {
+  return 2.f * std::sqrt(std::max(0.f, 1.f - planRadius * planRadius)) - 1.f;
+}
+
+// Window x of a point at a plan radius along the left/right axis, resting on
+// the dome.
+float domeWindowX(const float planRadius) {
+  return Coordinates::toWindow(Coordinates::getTopViewTransform(), kTestWindow,
+                               {planRadius, domeHeightAt(planRadius), 0.f, 1.f})
+      .a[0];
+}
+
+// Window x of that same source AS DRAWN now: still resting on the dome, but
+// put through the plan plane first. The height must not survive this.
+float drawnMarkerX(const float planRadius) {
+  return Coordinates::toWindow(
+             Coordinates::getTopViewTransform(), kTestWindow,
+             Coordinates::toPlanPlane(
+                 {planRadius, domeHeightAt(planRadius), 0.f, 1.f}))
+      .a[0];
+}
+
+// The footprint the dome painter fills: plan radius 1 on the plan plane.
+// Every drawn marker has to stay inside it.
+float footprintX() {
+  return Coordinates::toWindow(Coordinates::getTopViewTransform(), kTestWindow,
+                               {1.f, Coordinates::kPlanPlaneUp, 0.f, 1.f})
+      .a[0];
+}
+
+// The room's centre, which projects to one window point at every height.
+float centreX() {
+  return Coordinates::toWindow(Coordinates::getTopViewTransform(), kTestWindow,
+                               {0.f, Coordinates::kPlanPlaneUp, 0.f, 1.f})
+      .a[0];
+}
+
+float centreY() {
+  return Coordinates::toWindow(Coordinates::getTopViewTransform(), kTestWindow,
+                               {0.f, Coordinates::kPlanPlaneUp, 0.f, 1.f})
+      .a[1];
+}
+}  // namespace
+
+// The plan plane keeps where a source is in the room and discards how high it
+// is, which is the whole of what it does.
+TEST(test_room_coordinates, planPlaneKeepsThePlanPositionAndDropsTheHeight) {
+  const Coordinates::Point4D kOnPlane =
+      Coordinates::toPlanPlane(Coordinates::toRoomNdc(-30.f, -35.f, -11.f));
+
+  EXPECT_NEAR(kOnPlane.a[0], -0.6f, kTolerance);
+  EXPECT_NEAR(kOnPlane.a[2], 0.7f, kTolerance);
+  EXPECT_NEAR(kOnPlane.a[1], Coordinates::kPlanPlaneUp, kTolerance);
+  EXPECT_NEAR(kOnPlane.a[3], 1.f, kTolerance);
+}
+
+// Why the dome is positioned in plan at all. A source resting on it projects
+// out by r / (5 - height(r)), which peaks at r = 2*sqrt(2)/3 and comes back,
+// so two plan radii share one screen position exactly: 0.8 and the rim. A
+// pointer there names both, which is what no inverse can resolve.
+TEST(test_room_coordinates, domeProjectionFoldsTwoPlanRadiiOntoOneWindowPoint) {
+  EXPECT_NEAR(domeWindowX(0.8f), domeWindowX(1.f), kTolerance);
+}
+
+// On the plan plane that collision is gone: the two radii are as far apart on
+// screen as they are in the room, and every pair is.
+TEST(test_room_coordinates, planPlaneSeparatesThePlanRadiiTheDomeFolds) {
+  EXPECT_GT(drawnMarkerX(1.f), drawnMarkerX(0.8f) + 1.f);
+
+  // And no pair collides anywhere: the drawn position rises with plan radius
+  // over the whole range, which the surviving height took away.
+  float previous = drawnMarkerX(0.f);
+  for (int i = 1; i <= 100; ++i) {
+    const float kCurrent = drawnMarkerX(i / 100.f);
+    EXPECT_GT(kCurrent, previous) << "at plan radius " << i / 100.f;
+    previous = kCurrent;
+  }
+}
+
+// The drag's conversion on the plan plane returns the position it was given,
+// for every legal position and whatever height the dome then gives it. This is
+// what makes one pointer position name one place: the inverse no longer reads
+// a height the previous event produced.
+TEST(test_room_coordinates, planPlaneDragConversionRoundTripsAtEveryHeight) {
+  for (int x : {-50, -30, -1, 0, 1, 25, 50}) {
+    for (int y : {-50, -35, -1, 0, 1, 25, 50}) {
+      const Coordinates::Point4D kDrawn = Coordinates::toPlanPlane(
+          Coordinates::toRoomNdc((float)x, (float)y,
+                                 /*any height*/ -11.f));
+      const Coordinates::Point2D kWindow = Coordinates::toWindow(
+          Coordinates::getTopViewTransform(), kTestWindow, kDrawn);
+      const Coordinates::PositionParameters kBack =
+          Coordinates::fromRoomNdc(Coordinates::fromTopViewWindow(
+              Coordinates::getTopViewTransform(), kTestWindow, kWindow,
+              Coordinates::kPlanPlaneUp));
+
+      EXPECT_EQ(kBack.x, x) << "at (" << x << ", " << y << ")";
+      EXPECT_EQ(kBack.y, y) << "at (" << x << ", " << y << ")";
+    }
+  }
+}
+
+// The loop the panner ran under the dome before it positioned in plan: every
+// drag event un-projected the pointer at the height the LAST event left the
+// source at, and the dome then moved that height. The map has gain above 1
+// past the fold, so for one fixed pointer the outcome bifurcates -- below a
+// threshold radius the source settles mid-dome, a few thousandths above it the
+// source runs to the rim instead. Same pointer, two answers, chosen by where
+// the source happened to be.
+TEST(test_room_coordinates, aHeightTrackingDragBifurcatesUnderTheDome) {
+  // A pointer on the left/right axis, inside the folded band.
+  const Coordinates::Point2D kPointer = {domeWindowX(0.9f), centreY()};
+  const auto kSettleFrom = [&kPointer](const float startRadius) {
+    float radius = startRadius;
+    for (int i = 0; i < 400; ++i) {
+      const Coordinates::Point4D kNdc = Coordinates::fromTopViewWindow(
+          Coordinates::getTopViewTransform(), kTestWindow, kPointer,
+          domeHeightAt(radius));
+      radius = std::min(1.f, std::abs(kNdc.a[0]));
+    }
+    return radius;
+  };
+
+  EXPECT_NEAR(kSettleFrom(0.80f), 0.9f, 1e-3f);
+  EXPECT_NEAR(kSettleFrom(0.973f), 0.9f, 1e-3f);
+  // Just the other side of the threshold, the same pointer runs to the rim.
+  EXPECT_NEAR(kSettleFrom(0.977f), 1.f, 1e-3f);
+}
+
+// On the plan plane there is no loop to run: the pointer un-projects to one
+// position, and the source's height cannot reach the conversion at all.
+TEST(test_room_coordinates, thePlanPlaneDragResolvesOnePositionFromAnyStart) {
+  const Coordinates::Point2D kPointer = {domeWindowX(0.9f), centreY()};
+  const auto kResolveFrom = [&kPointer](const float startRadius) {
+    float radius = startRadius;
+    for (int i = 0; i < 8; ++i) {
+      const Coordinates::Point4D kNdc = Coordinates::fromTopViewWindow(
+          Coordinates::getTopViewTransform(), kTestWindow, kPointer,
+          Coordinates::kPlanPlaneUp);
+      radius = std::min(1.f, std::abs(kNdc.a[0]));
+    }
+    return radius;
+  };
+
+  EXPECT_NEAR(kResolveFrom(0.80f), kResolveFrom(0.977f), kTolerance);
+  EXPECT_NEAR(kResolveFrom(0.10f), kResolveFrom(0.999f), kTolerance);
+}
+
+// The point manual testing reported, and every legal dome position: drawn on
+// the plan plane, none reaches the footprint the painter fills at plan radius
+// 1 on that same plane. The marker can no longer leave the drawn circle.
+TEST(test_room_coordinates, everyLegalDomePositionDrawsInsideTheFootprint) {
+  const float kFootprint = footprintX() - centreX();
+
+  // The reported position: plan radius 46.1 of 50, at the height the dome
+  // gives it. It used to draw 6 percent beyond the footprint.
+  const Coordinates::Point2D kReported = Coordinates::toWindow(
+      Coordinates::getTopViewTransform(), kTestWindow,
+      Coordinates::toPlanPlane(Coordinates::toRoomNdc(-30.f, -35.f, -11.f)));
+  EXPECT_LT(std::abs(kReported.a[0] - centreX()), kFootprint);
+
+  for (int i = 0; i <= 100; ++i) {
+    const float kPlanRadius = i / 100.f;
+    EXPECT_LE(drawnMarkerX(kPlanRadius) - centreX(), kFootprint + kTolerance)
+        << "at plan radius " << kPlanRadius;
   }
 }
