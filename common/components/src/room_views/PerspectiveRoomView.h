@@ -85,6 +85,14 @@ class PerspectiveRoomView : public juce::Component {
     Coordinates::Point4D ndcPos = {0.f, 0.f, 0.f, 1.f};
   };
 
+  // Where a track is DRAWN, which is not always where it is. A view that
+  // positions in plan projects the marker onto one plane, so its screen
+  // position carries the plan position alone. The default draws it where it
+  // is, which is what every view but the audio element panner wants.
+  virtual Coordinates::Point4D trackDrawPosition(
+      const Coordinates::Point4D& ndcPos) const {
+    return ndcPos;
+  }
   virtual const float getTrackScaling(const Coordinates::Point4D pt) const = 0;
   virtual void drawFace(const std::array<Coordinates::Point2D, 4>& faceVerts,
                         const juce::Colour& c, juce::Graphics& g);
