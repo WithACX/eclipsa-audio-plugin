@@ -248,9 +248,9 @@ bool AudioElementPluginTopView::snapToSpeakerAt(
     writeSteppedPositionParameter(yParameter, kTarget.y);
   }
   // Under every other pattern height belongs to the pattern: ElevationListener
-  // derives it from the position just written, and under Dome it also pulls
-  // left/right and front/back back onto the sphere. Writing height here would
-  // fight that, and pre-clamping would duplicate math it already owns.
+  // derives it from the position just written, so writing height here would
+  // fight it. Unlike a drag, no plan clamp is needed: every speaker sits
+  // inside the dome's footprint.
   if (PannerInput::clickSetsHeight(currentElevation_)) {
     juce::RangedAudioParameter* zParameter =
         positionParameter(AutoParamMetaData::zPosition);
