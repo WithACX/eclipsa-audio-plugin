@@ -391,7 +391,7 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
       return elevationHeightAt(leftRight, frontBack);
     };
     const Coordinates::Point4D kIndicatorPos =
-        indicatorPosition(transformedTracks_[0].ndcPos);
+        indicatorPosition(transformedTracks_[0], wData);
     outline = HeightIndicator::splitAtElevation(kIndicatorPos.a[1], kRoofAt);
     connectors = HeightIndicator::splitLeaderLinesAtElevation(
         kIndicatorPos, kRoofAt, elevationVariesAcrossLeftRight());
@@ -469,6 +469,21 @@ float AudioElementPluginTopView::elevationHeightAt(
 }
 
 Coordinates::Point4D AudioElementPluginTopView::indicatorPosition(
+    const DrawableTrack& source, const Coordinates::WindowData& window) const {
+  const Coordinates::Point4D kHeightAnchored =
+      sourceHeightPosition(source.ndcPos);
+  if (!elevationPositionsInPlan()) {
+    return kHeightAnchored;
+  }
+  // The marker is drawn on the plan plane, so anchor the indicator at the point
+  // on the source's height plane that projects onto the marker. The leader
+  // lines then start at the marker and still end on the height's outline.
+  const Coordinates::Point2D kMarker = {source.pos.a[0], source.pos.a[1]};
+  return Coordinates::fromTopViewWindow(kTransformMat_, window, kMarker,
+                                        kHeightAnchored.a[1]);
+}
+
+Coordinates::Point4D AudioElementPluginTopView::sourceHeightPosition(
     const Coordinates::Point4D& sourceNdc) const {
   // Where a pattern clamps the source, read the height back off the surface
   // rather than off the position parameter. The parameter is quantised, and
