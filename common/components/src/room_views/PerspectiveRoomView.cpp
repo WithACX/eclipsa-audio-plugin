@@ -153,7 +153,10 @@ void PerspectiveRoomView::transformDynamicVertices() {
     DrawableTrack newTrack;
     Coordinates::Point4D pt = Coordinates::toRoomNdc(data.x, data.y, data.z);
     newTrack.ndcPos = pt;
-    newTrack.pos = Coordinates::toWindow(kTransformMat_, wData, pt);
+    // Size still reads the real height below, so a marker held on one plane
+    // keeps conveying its elevation.
+    newTrack.pos =
+        Coordinates::toWindow(kTransformMat_, wData, trackDrawPosition(pt));
     if (rendererPlugin_) {
       newTrack.trackLoudness = assignTrackLoudness(data, mixPresSoloMute);
     } else {

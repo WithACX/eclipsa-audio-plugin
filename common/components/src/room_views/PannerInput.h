@@ -133,8 +133,9 @@ inline bool elevationOwnsHeight(
  * not just change, which suits a single dial edit; a pointer moves both at
  * once, so its nearest legal point is the radial one.
  *
- * Truncates rather than rounds, so the quantized result stays inside the circle
- * and leaves nothing to correct.
+ * Picks the integer position nearest the rim that is still inside the circle,
+ * so the result leaves nothing to correct and falls in the dome's rim band,
+ * where ElevationListener holds the height at the floor.
  *
  * @param elevation the active elevation pattern
  * @param target a position in parameter space
@@ -154,8 +155,25 @@ inline Coordinates::PositionParameters clampToElevationPlan(
     return target;
   }
   const float kScale = Coordinates::kPositionExtent / kRadius;
-  return {(int)std::trunc(target.x * kScale),
-          (int)std::trunc(target.y * kScale), target.z};
+  const float kRimX = target.x * kScale;
+  const float kRimY = target.y * kScale;
+
+  // The integer neighbour of the rim point farthest out that is still inside
+  // the circle, so the source lands in the dome's rim band.
+  Coordinates::PositionParameters best = {0, 0, target.z};
+  int bestRadiusSq = -1;
+  for (const float kX : {std::floor(kRimX), std::ceil(kRimX)}) {
+    for (const float kY : {std::floor(kRimY), std::ceil(kRimY)}) {
+      const int kRadiusSq = (int)(kX * kX + kY * kY);
+      const int kExtentSq =
+          (int)(Coordinates::kPositionExtent * Coordinates::kPositionExtent);
+      if (kRadiusSq <= kExtentSq && kRadiusSq > bestRadiusSq) {
+        best = {(int)kX, (int)kY, target.z};
+        bestRadiusSq = kRadiusSq;
+      }
+    }
+  }
+  return best;
 }
 
 }  // namespace PannerInput

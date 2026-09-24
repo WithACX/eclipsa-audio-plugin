@@ -36,6 +36,10 @@ PositionParameters fromRoomNdc(const Point4D& ndcPoint) {
   };
 }
 
+Point4D toPlanPlane(const Point4D& ndcPoint) {
+  return {ndcPoint.a[0], kPlanPlaneUp, ndcPoint.a[2], 1.f};
+}
+
 Point2D toWindow(const Mat4& transformMat, const WindowData& windowData,
                  const Point4D point) {
   // Apply transform.

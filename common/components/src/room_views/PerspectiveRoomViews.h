@@ -98,9 +98,14 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   void nudgeAxis(PannerInput::Axis axis, int steps);
   float elevationHeightAt(float leftRight, float frontBack) const;
   Coordinates::Point4D indicatorPosition(
+      const DrawableTrack& source, const Coordinates::WindowData& window) const;
+  Coordinates::Point4D sourceHeightPosition(
       const Coordinates::Point4D& sourceNdc) const;
   bool elevationClampsTheSource() const;
   bool elevationVariesAcrossLeftRight() const;
+  bool elevationPositionsInPlan() const;
+  Coordinates::Point4D trackDrawPosition(
+      const Coordinates::Point4D& ndcPos) const override;
   void paintIndicatorRuns(const Coordinates::WindowData& window,
                           const std::vector<HeightIndicator::Segment>& runs,
                           float thickness, juce::Graphics& g);
