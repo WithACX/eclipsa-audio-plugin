@@ -266,19 +266,29 @@ void AudioElementPluginTopView::writeDragPosition(
   if (parameterTree_ == nullptr) {
     return;
   }
-  // Drag within the plane the source already occupies. ElevationListener moves
-  // the height afterwards under a non-Flat pattern.
+  // The plane the pointer is un-projected onto. Under a pattern that positions
+  // in plan it is FIXED, so the pointer names one position however the height
+  // then moves. Reading it from the source's live height instead closes a
+  // feedback loop through ElevationListener: each event un-projects at the
+  // height the last one produced, and where the projection folds that loop has
+  // gain above 1, so the source runs away from the pointer and lands somewhere
+  // that depends on where it started.
   const float kNdcUp =
-      Coordinates::toRoomNdc(0.f, 0.f, (float)parameterTree_->getZPosition())
-          .a[1];
+      elevationPositionsInPlan()
+          ? Coordinates::kPlanPlaneUp
+          : Coordinates::toRoomNdc(0.f, 0.f,
+                                   (float)parameterTree_->getZPosition())
+                .a[1];
   const Coordinates::Point2D kWindowPoint = {windowPoint.x, windowPoint.y};
   const Coordinates::Point4D kRoomNdc = Coordinates::fromTopViewWindow(
       kTransformMat_, currentWindow(), kWindowPoint, kNdcUp);
+  // Clamped before the write: a correction made after it has already been
+  // published to the host.
   const Coordinates::PositionParameters kTarget =
-      Coordinates::fromRoomNdc(kRoomNdc);
+      PannerInput::clampToElevationPlan(currentElevation_,
+                                        Coordinates::fromRoomNdc(kRoomNdc));
 
   // Each event converts the pointer afresh, so no drift accumulates.
-  // ElevationListener owns the dome's circular clamp.
   juce::RangedAudioParameter* xParameter =
       positionParameter(AutoParamMetaData::xPosition);
   juce::RangedAudioParameter* yParameter =
@@ -433,11 +443,14 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
     const auto kRoofAt = [this](const float leftRight, const float frontBack) {
       return elevationHeightAt(leftRight, frontBack);
     };
+    const Coordinates::Point4D kSourcePos =
+        sourceHeightPosition(transformedTracks_[0].ndcPos);
     const Coordinates::Point4D kIndicatorPos =
-        indicatorPosition(transformedTracks_[0].ndcPos);
-    outline = HeightIndicator::splitAtElevation(kIndicatorPos.a[1], kRoofAt);
-    connectors = HeightIndicator::splitLeaderLinesAtElevation(
-        kIndicatorPos, kRoofAt, elevationVariesAcrossLeftRight());
+        indicatorPosition(transformedTracks_[0], wData);
+    outline = HeightIndicator::splitAtElevation(kSourcePos.a[1], kRoofAt);
+    // Split against the surface where the source is, not where it is drawn.
+    connectors = HeightIndicator::splitLeaderLinesDrawnAt(
+        kSourcePos, kIndicatorPos, kRoofAt, elevationVariesAcrossLeftRight());
   }
 
   // Then the runs that pass under the surface, so the fill tints them.
@@ -512,6 +525,21 @@ float AudioElementPluginTopView::elevationHeightAt(
 }
 
 Coordinates::Point4D AudioElementPluginTopView::indicatorPosition(
+    const DrawableTrack& source, const Coordinates::WindowData& window) const {
+  const Coordinates::Point4D kHeightAnchored =
+      sourceHeightPosition(source.ndcPos);
+  if (!elevationPositionsInPlan()) {
+    return kHeightAnchored;
+  }
+  // The marker is drawn on the plan plane, so anchor the indicator at the point
+  // on the source's height plane that projects onto the marker. The leader
+  // lines then start at the marker and still end on the height's outline.
+  const Coordinates::Point2D kMarker = {source.pos.a[0], source.pos.a[1]};
+  return Coordinates::fromTopViewWindow(kTransformMat_, window, kMarker,
+                                        kHeightAnchored.a[1]);
+}
+
+Coordinates::Point4D AudioElementPluginTopView::sourceHeightPosition(
     const Coordinates::Point4D& sourceNdc) const {
   // Where a pattern clamps the source, read the height back off the surface
   // rather than off the position parameter. The parameter is quantised, and
@@ -541,6 +569,24 @@ bool AudioElementPluginTopView::elevationClampsTheSource() const {
     default:
       return false;
   }
+}
+
+bool AudioElementPluginTopView::elevationPositionsInPlan() const {
+  // Only the dome. Its height falls away in left/right as well as front/back,
+  // so a source resting on it projects out by r / (5 - height(r)), which peaks
+  // at r = 2*sqrt(2)/3 and comes back: one screen position names two plan
+  // radii, and neither the drag nor the hit test can tell them apart. The
+  // other patterns vary in front/back alone and stay monotonic, so they are
+  // positioned in perspective, with the marker resting on the drawn surface.
+  return currentElevation_ == AudioElementSpatialLayout::Elevation::kDome;
+}
+
+Coordinates::Point4D AudioElementPluginTopView::trackDrawPosition(
+    const Coordinates::Point4D& ndcPos) const {
+  if (!elevationPositionsInPlan()) {
+    return ndcPos;
+  }
+  return Coordinates::toPlanPlane(ndcPos);
 }
 
 bool AudioElementPluginTopView::elevationVariesAcrossLeftRight() const {

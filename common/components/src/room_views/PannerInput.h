@@ -21,6 +21,7 @@
 #include <limits>
 #include <vector>
 
+#include "Coordinates.h"
 #include "data_structures/src/AudioElementSpatialLayout.h"
 
 // Keyboard and scroll-wheel input mapping for the audio element panner.
@@ -199,6 +200,59 @@ inline int speakerIndexAt(const std::vector<SpeakerTarget>& targets,
 inline bool clickSetsHeight(
     const AudioElementSpatialLayout::Elevation elevation) {
   return elevation == AudioElementSpatialLayout::Elevation::kNone;
+}
+
+/**
+ * @brief Clamp a pointer target onto the floor plan the elevation pattern
+ *        allows.
+ *
+ * Call this before writing, not after. ElevationListener bounds the dome too,
+ * but only once the position is the parameter's value, so a correction there
+ * has already been published to the host. It also gives on whichever axis did
+ * not just change, which suits a single dial edit; a pointer moves both at
+ * once, so its nearest legal point is the radial one.
+ *
+ * Picks the integer position nearest the rim that is still inside the circle,
+ * so the result leaves nothing to correct and falls in the dome's rim band,
+ * where ElevationListener holds the height at the floor.
+ *
+ * @param elevation the active elevation pattern
+ * @param target a position in parameter space
+ * @return Coordinates::PositionParameters target unchanged, or the nearest
+ *         position the pattern allows
+ */
+inline Coordinates::PositionParameters clampToElevationPlan(
+    const AudioElementSpatialLayout::Elevation elevation,
+    const Coordinates::PositionParameters target) {
+  // Only the dome bounds the floor plan; the others are height fields over the
+  // whole room.
+  if (elevation != AudioElementSpatialLayout::Elevation::kDome) {
+    return target;
+  }
+  const float kRadius = std::hypot((float)target.x, (float)target.y);
+  if (kRadius <= Coordinates::kPositionExtent) {
+    return target;
+  }
+  const float kScale = Coordinates::kPositionExtent / kRadius;
+  const float kRimX = target.x * kScale;
+  const float kRimY = target.y * kScale;
+
+  // The integer neighbour of the rim point farthest out that is still inside
+  // the circle, so the source lands in the dome's rim band.
+  Coordinates::PositionParameters best = {0, 0, target.z};
+  int bestRadiusSq = -1;
+  for (const float kX : {std::floor(kRimX), std::ceil(kRimX)}) {
+    for (const float kY : {std::floor(kRimY), std::ceil(kRimY)}) {
+      const int kRadiusSq = (int)(kX * kX + kY * kY);
+      const int kExtentSq =
+          (int)(Coordinates::kPositionExtent * Coordinates::kPositionExtent);
+      if (kRadiusSq <= kExtentSq && kRadiusSq > bestRadiusSq) {
+        best = {(int)kX, (int)kY, target.z};
+        bestRadiusSq = kRadiusSq;
+      }
+    }
+  }
+  return best;
 }
 
 }  // namespace PannerInput
