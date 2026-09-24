@@ -367,3 +367,37 @@ TEST(test_room_coordinates, everyLegalDomePositionDrawsInsideTheFootprint) {
         << "at plan radius " << kPlanRadius;
   }
 }
+
+// Under the dome the height indicator is anchored where the marker is drawn,
+// at the source's height: it projects onto the marker, so the leader lines
+// start there, and it lies inside the room so they end on the outline.
+TEST(test_room_coordinates, domeIndicatorAnchorSitsOnTheMarkerInsideTheRoom) {
+  for (int x = -50; x <= 50; x += 5) {
+    for (int y = -50; y <= 50; y += 5) {
+      const Coordinates::Point4D kPlan =
+          Coordinates::toRoomNdc((float)x, (float)y, 0.f);
+      const float kPlanRadius = std::hypot(kPlan.a[0], kPlan.a[2]);
+      if (kPlanRadius > 1.f) {
+        continue;
+      }
+      const float kHeight = domeHeightAt(kPlanRadius);
+      const Coordinates::Point2D kMarker =
+          Coordinates::toWindow(Coordinates::getTopViewTransform(), kTestWindow,
+                                Coordinates::toPlanPlane(kPlan));
+
+      const Coordinates::Point4D kAnchor = Coordinates::fromTopViewWindow(
+          Coordinates::getTopViewTransform(), kTestWindow, kMarker, kHeight);
+      const Coordinates::Point2D kAnchorOnScreen = Coordinates::toWindow(
+          Coordinates::getTopViewTransform(), kTestWindow, kAnchor);
+
+      EXPECT_NEAR(kAnchorOnScreen.a[0], kMarker.a[0], 1e-3f)
+          << "at (" << x << ", " << y << ")";
+      EXPECT_NEAR(kAnchorOnScreen.a[1], kMarker.a[1], 1e-3f)
+          << "at (" << x << ", " << y << ")";
+      EXPECT_LE(std::abs(kAnchor.a[0]), 1.f + kTolerance)
+          << "at (" << x << ", " << y << ")";
+      EXPECT_LE(std::abs(kAnchor.a[2]), 1.f + kTolerance)
+          << "at (" << x << ", " << y << ")";
+    }
+  }
+}
