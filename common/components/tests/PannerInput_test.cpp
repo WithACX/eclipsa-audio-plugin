@@ -32,6 +32,7 @@
 #include "components/src/room_views/Coordinates.h"
 #include "components/src/room_views/PannerInput.h"
 #include "components/src/room_views/SpeakerLookup.h"
+#include "data_structures/src/Elevation.h"
 // clang-format on
 
 #include <gtest/gtest.h>
@@ -397,8 +398,6 @@ TEST(PannerInputTest, domeLeavesAnInsideTargetAlone) {
 }
 
 // No target, anywhere in or beyond the room, comes back outside the circle.
-// Truncating toward the centre is what guarantees it; rounding can push a point
-// on the boundary back out.
 TEST(PannerInputTest, domeNeverReturnsAPointOutsideTheCircle) {
   for (int x = -80; x <= 80; ++x) {
     for (int y = -80; y <= 80; ++y) {
@@ -419,12 +418,12 @@ TEST(PannerInputTest, domeClampHoldsTheDirectionOfThePointer) {
       PannerInput::clampToElevationPlan(Elevation::kDome, {70, 70, 0});
 
   EXPECT_EQ(kClamped.x, kClamped.y);
-  // 50 / sqrt(2) = 35.355..., truncated toward the centre.
+  // 50 / sqrt(2) = 35.355...; 36 would leave the circle.
   EXPECT_EQ(kClamped.x, 35);
 }
 
-// The clamp lands on the boundary rather than somewhere short of it: no target
-// outside the circle comes back more than one parameter step inside it.
+// The clamp lands in the dome's rim band: no target outside the circle comes
+// back one parameter step or more inside it.
 TEST(PannerInputTest, domeClampReachesTheBoundary) {
   for (int x = -80; x <= 80; ++x) {
     for (int y = -80; y <= 80; ++y) {
@@ -434,7 +433,7 @@ TEST(PannerInputTest, domeClampReachesTheBoundary) {
       const Coordinates::PositionParameters kClamped =
           PannerInput::clampToElevationPlan(Elevation::kDome, {x, y, 0});
       const float kRadius = std::hypot((float)kClamped.x, (float)kClamped.y);
-      EXPECT_GT(kRadius, Coordinates::kPositionExtent - 2.f)
+      EXPECT_GT(kRadius, Coordinates::kPositionExtent - 1.f)
           << "target (" << x << ", " << y << ") clamped to (" << kClamped.x
           << ", " << kClamped.y << ")";
     }
@@ -448,4 +447,26 @@ TEST(PannerInputTest, domeClampLeavesHeightToThePattern) {
       PannerInput::clampToElevationPlan(Elevation::kDome, {70, 70, -25});
 
   EXPECT_EQ(kClamped.z, -25);
+}
+
+// A drag pinned at the rim reads floor height, whichever direction it left
+// the circle in.
+TEST(PannerInputTest, domeClampedDragSitsAtTheFloor) {
+  for (int x = -80; x <= 80; ++x) {
+    for (int y = -80; y <= 80; ++y) {
+      if (std::hypot((float)x, (float)y) <= Coordinates::kPositionExtent) {
+        continue;
+      }
+      const Coordinates::PositionParameters kClamped =
+          PannerInput::clampToElevationPlan(Elevation::kDome, {x, y, 0});
+      const Coordinates::Point3D kOnDome =
+          ElevationListener::getDomeElevationPtClamped(
+              {kClamped.x / Coordinates::kPositionExtent,
+               kClamped.y / Coordinates::kPositionExtent, 0.f},
+              {});
+      EXPECT_EQ(kOnDome.a[1] * Coordinates::kPositionExtent, -50.f)
+          << "target (" << x << ", " << y << ") clamped to (" << kClamped.x
+          << ", " << kClamped.y << ")";
+    }
+  }
 }
