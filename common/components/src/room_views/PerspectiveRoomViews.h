@@ -70,8 +70,8 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
     parameterTree_ = tree;
   }
 
-  // A press on a drawn speaker snaps the source to it; a press on the source
-  // starts a drag in left/right and front/back.
+  // A press on a drawn speaker snaps the source to it; a press on a speaker or
+  // on the source starts a drag in left/right and front/back.
   void mouseDown(const juce::MouseEvent& event) override;
   void mouseDrag(const juce::MouseEvent& event) override;
   void mouseUp(const juce::MouseEvent& event) override;
@@ -90,9 +90,9 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   // Shared by paint and the drag so both use one mapping.
   Coordinates::WindowData currentWindow() const;
   bool sourceMarkerContains(const juce::Point<float>& windowPoint) const;
-  // Writes the position of the speaker under windowPoint, if any. Reports
-  // whether it hit, so mouseDown can leave the drag unstarted.
-  bool snapToSpeakerAt(const juce::Point<float>& windowPoint);
+  // An index into speakers_, or PannerInput::kNoSpeaker.
+  int speakerIndexAt(const juce::Point<float>& windowPoint) const;
+  void snapToSpeaker(int speakerIndex);
   // Gesture bracketing needs the parameter itself. The tree's setters go
   // through getParameterAsValue and emit no gesture markers.
   juce::RangedAudioParameter* positionParameter(
@@ -134,6 +134,9 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
 
   AudioElementParameterTree* parameterTree_ = nullptr;
   bool draggingSource_ = false;  // true between press and release
+  // A speaker press holds the snapped position until the pointer has moved
+  // past JUCE's drag threshold.
+  bool holdingSnap_ = false;
   // Sub-notch wheel travel, carried between events so a trackpad's stream of
   // small deltas adds up rather than being discarded.
   float wheelAccumulator_ = 0.f;
