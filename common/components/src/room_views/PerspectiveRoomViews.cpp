@@ -443,11 +443,14 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
     const auto kRoofAt = [this](const float leftRight, const float frontBack) {
       return elevationHeightAt(leftRight, frontBack);
     };
+    const Coordinates::Point4D kSourcePos =
+        sourceHeightPosition(transformedTracks_[0].ndcPos);
     const Coordinates::Point4D kIndicatorPos =
         indicatorPosition(transformedTracks_[0], wData);
-    outline = HeightIndicator::splitAtElevation(kIndicatorPos.a[1], kRoofAt);
-    connectors = HeightIndicator::splitLeaderLinesAtElevation(
-        kIndicatorPos, kRoofAt, elevationVariesAcrossLeftRight());
+    outline = HeightIndicator::splitAtElevation(kSourcePos.a[1], kRoofAt);
+    // Split against the surface where the source is, not where it is drawn.
+    connectors = HeightIndicator::splitLeaderLinesDrawnAt(
+        kSourcePos, kIndicatorPos, kRoofAt, elevationVariesAcrossLeftRight());
   }
 
   // Then the runs that pass under the surface, so the fill tints them.
