@@ -19,9 +19,12 @@
 #include <components/components.h>
 
 #include "components/src/room_views/ListenerHead.h"
+#include "components/src/room_views/PerspectiveRoomViews.h"
 // clang-format on
 
 #include <gtest/gtest.h>
+
+#include <cmath>
 
 namespace {
 
@@ -51,6 +54,49 @@ TEST(PannerHeadOrder, HeadFirstForFlatAtOrAboveTheHead) {
   EXPECT_TRUE(ListenerHead::drawnBeforeElevation(Elevation::kFlat, 0.f));
   EXPECT_TRUE(ListenerHead::drawnBeforeElevation(Elevation::kFlat, 0.02f));
   EXPECT_TRUE(ListenerHead::drawnBeforeElevation(Elevation::kFlat, 1.f));
+}
+
+// Over a Flat surface below it, the head keeps its own alpha rather than
+// taking the surface's.
+TEST(PannerHeadRender, HeadOverFlatSurfaceKeepsFullOpacity) {
+  const juce::ScopedJuceInitialiser_GUI kJuce;
+  constexpr int kSize = 400;
+  SpeakerMonitorData monitorData;
+  monitorData.reinitializeLoudnesses(2);
+  AudioElementPluginTopView view(monitorData);
+  view.setBounds(0, 0, kSize, kSize);
+  view.setElevationPattern(Elevation::kFlat);
+  view.setFlatHeight(-25.f);
+  // Keeps the source marker clear of the head.
+  AudioElementUpdateData source;
+  source.x = 40.f;
+  source.y = -40.f;
+  source.z = -25.f;
+  view.setTracks({source});
+
+  juce::Image frame(juce::Image::ARGB, kSize, kSize, true);
+  {
+    juce::Graphics g(frame);
+    view.paintEntireComponent(g, false);
+  }
+
+  const Coordinates::WindowData kWindow = {.leftCornerX = 0.f,
+                                           .bottomCornerY = (float)kSize,
+                                           .width = (float)kSize,
+                                           .height = (float)kSize};
+  const Coordinates::Point2D kCentre = Coordinates::toWindow(
+      Coordinates::getTopViewTransform(), kWindow, {0.f, 0.f, 0.f, 1.f});
+  const juce::Image kHead = IconStore::getInstance().getTopIcon();
+  const int kX = juce::roundToInt(kCentre.a[0]);
+  const int kY = juce::roundToInt(kCentre.a[1]);
+  const juce::Colour kIcon =
+      kHead.getPixelAt(kHead.getWidth() / 2, kHead.getHeight() / 2);
+  const juce::Colour kSurface = frame.getPixelAt(kX + kHead.getWidth(), kY);
+  const juce::Colour kExpected = kSurface.overlaidWith(kIcon);
+  const juce::Colour kDrawn = frame.getPixelAt(kX, kY);
+  EXPECT_NEAR(kDrawn.getRed(), kExpected.getRed(), 6);
+  EXPECT_NEAR(kDrawn.getGreen(), kExpected.getGreen(), 6);
+  EXPECT_NEAR(kDrawn.getBlue(), kExpected.getBlue(), 6);
 }
 
 }  // namespace

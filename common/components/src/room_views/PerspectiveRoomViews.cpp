@@ -643,6 +643,9 @@ void AudioElementPluginTopView::paintListenerHead(
   // Painted here rather than through imageComponent_: a child component paints
   // over all of this view's paint output, so it could not sit under a surface.
   const juce::Image kHead = IconStore::getInstance().getTopIcon();
+  // drawImage draws at the context's current opacity, which the elevation
+  // painters leave at the surface's alpha.
+  g.setOpacity(1.f);
   const Coordinates::Point2D kCentre =
       Coordinates::toWindow(kTransformMat_, window, {0.f, 0.f, 0.f, 1.f});
   g.drawImage(kHead, kHead.getBounds().toFloat().withCentre(
