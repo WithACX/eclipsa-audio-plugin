@@ -443,6 +443,12 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
 
   PerspectiveRoomView::paint(g);
 
+  const bool kHeadUnderSurface =
+      ListenerHead::drawnBeforeElevation(currentElevation_, currentFlatHeight_);
+  if (kHeadUnderSurface) {
+    paintListenerHead(wData, g);
+  }
+
   // First split the indicator against the elevation surface: the outline and
   // the back-edge connector pass under it, so each is drawn either side of the
   // fill. The right-edge connector is coincident with the surface rather than
@@ -487,6 +493,10 @@ void AudioElementPluginTopView::paint(juce::Graphics& g) {
       break;
     default:
       break;
+  }
+
+  if (!kHeadUnderSurface) {
+    paintListenerHead(wData, g);
   }
 
   // Then the runs over it, at full strength.
@@ -607,6 +617,17 @@ bool AudioElementPluginTopView::elevationVariesAcrossLeftRight() const {
   // placed rather than split -- see
   // HeightIndicator::splitLeaderLinesAtElevation.
   return currentElevation_ == AudioElementSpatialLayout::Elevation::kDome;
+}
+
+void AudioElementPluginTopView::paintListenerHead(
+    const Coordinates::WindowData& window, juce::Graphics& g) {
+  // Painted here rather than through imageComponent_: a child component paints
+  // over all of this view's paint output, so it could not sit under a surface.
+  const juce::Image kHead = IconStore::getInstance().getTopIcon();
+  const Coordinates::Point2D kCentre =
+      Coordinates::toWindow(kTransformMat_, window, {0.f, 0.f, 0.f, 1.f});
+  g.drawImage(kHead, kHead.getBounds().toFloat().withCentre(
+                         {kCentre.a[0], kCentre.a[1]}));
 }
 
 void AudioElementPluginTopView::paintIndicatorRuns(

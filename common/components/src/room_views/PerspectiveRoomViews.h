@@ -19,6 +19,7 @@
 
 #include "PerspectiveRoomView.h"
 #include "components/src/room_views/HeightIndicator.h"
+#include "components/src/room_views/ListenerHead.h"
 #include "components/src/room_views/PannerInput.h"
 #include "data_structures/src/AudioElementParameterTree.h"
 #include "data_structures/src/AudioElementSpatialLayout.h"
@@ -110,6 +111,8 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   bool elevationPositionsInPlan() const;
   Coordinates::Point4D trackDrawPosition(
       const Coordinates::Point4D& ndcPos) const override;
+  void paintListenerHead(const Coordinates::WindowData& window,
+                         juce::Graphics& g);
   void paintIndicatorRuns(const Coordinates::WindowData& window,
                           const std::vector<HeightIndicator::Segment>& runs,
                           float thickness, juce::Graphics& g);
