@@ -741,7 +741,8 @@ Coordinates::Point4D planMarkerAnchor(const Coordinates::Point4D& source) {
   const Coordinates::Point2D kMarker = Coordinates::toWindow(
       topView(), kWindow, Coordinates::toPlanPlane(source));
   return Coordinates::fromTopViewWindow(topView(), kWindow, kMarker,
-                                        source.a[1]);
+                                        source.a[1])
+      .value();
 }
 }  // namespace
 
