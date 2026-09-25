@@ -18,6 +18,7 @@
 #include <array>
 #include <cmath>
 #include <cstddef>
+#include <optional>
 #include <vector>
 
 #include "components/src/room_views/ElevationSurfaces.h"
@@ -276,13 +277,18 @@ void AudioElementPluginTopView::writeDragPosition(
                                    (float)parameterTree_->getZPosition())
                 .a[1];
   const Coordinates::Point2D kWindowPoint = {windowPoint.x, windowPoint.y};
-  const Coordinates::Point4D kRoomNdc = Coordinates::fromTopViewWindow(
-      kTransformMat_, currentWindow(), kWindowPoint, kNdcUp);
+  const std::optional<Coordinates::Point4D> kRoomNdc =
+      Coordinates::fromTopViewWindow(kTransformMat_, currentWindow(),
+                                     kWindowPoint, kNdcUp);
+  // The source keeps its last position while the panner has no area.
+  if (!kRoomNdc) {
+    return;
+  }
   // Clamped before the write: a correction made after it has already been
   // published to the host.
   const Coordinates::PositionParameters kTarget =
       PannerInput::clampToElevationPlan(currentElevation_,
-                                        Coordinates::fromRoomNdc(kRoomNdc));
+                                        Coordinates::fromRoomNdc(*kRoomNdc));
 
   // Each event converts the pointer afresh, so no drift accumulates.
   juce::RangedAudioParameter* xParameter =
@@ -541,7 +547,8 @@ Coordinates::Point4D AudioElementPluginTopView::indicatorPosition(
   // lines then start at the marker and still end on the height's outline.
   const Coordinates::Point2D kMarker = {source.pos.a[0], source.pos.a[1]};
   return Coordinates::fromTopViewWindow(kTransformMat_, window, kMarker,
-                                        kHeightAnchored.a[1]);
+                                        kHeightAnchored.a[1])
+      .value_or(kHeightAnchored);
 }
 
 Coordinates::Point4D AudioElementPluginTopView::sourceHeightPosition(

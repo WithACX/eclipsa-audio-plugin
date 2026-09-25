@@ -16,6 +16,7 @@
 
 #pragma once
 #include <boost/qvm.hpp>
+#include <optional>
 
 namespace Coordinates {
 using Point2D = boost::qvm::vec<float, 2>;
@@ -134,11 +135,13 @@ Point4D toPlanPlane(const Point4D& ndcPoint);
  * @param windowPoint a position in window coordinates
  * @param ndcUp the NDC height the result should sit at
  * @return Point4D room-view NDC, with a[1] == ndcUp and w = 1, ready for
- *         fromRoomNdc
+ *         fromRoomNdc; empty when the window has no area, where no window
+ *         position names a room position
  */
-Point4D fromTopViewWindow(const Mat4& transformMat,
-                          const WindowData& windowData,
-                          const Point2D& windowPoint, const float ndcUp);
+std::optional<Point4D> fromTopViewWindow(const Mat4& transformMat,
+                                         const WindowData& windowData,
+                                         const Point2D& windowPoint,
+                                         const float ndcUp);
 
 constexpr Mat4 getRearViewTransform() {
   /**
