@@ -155,7 +155,7 @@ const float IsoView::getTrackScaling(const Coordinates::Point4D pt) const {
 };
 AudioElementPluginTopView::AudioElementPluginTopView(
     const SpeakerMonitorData& monitorData)
-    : PerspectiveRoomView(FaceLookup::getFaces(FaceLookup::kTop),
+    : PerspectiveRoomView(FaceLookup::getFaces(FaceLookup::kPannerTop),
                           Coordinates::getTopViewTransform(),
                           {SpeakerLookup::kLFE}, {}, monitorData) {
   // Arrow keys reach keyPressed only once this view can hold focus. It takes
