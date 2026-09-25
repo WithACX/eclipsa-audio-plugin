@@ -61,6 +61,8 @@ class AudioElementPluginTopView : public PerspectiveRoomView {
   void paint(juce::Graphics& g) override;
   const float getTrackScaling(const Coordinates::Point4D pt) const override;
   void drawTrack(const DrawableTrack& track, juce::Graphics& g) override;
+  void drawFace(const std::array<Coordinates::Point2D, 4>& faceVerts,
+                const juce::Colour& c, juce::Graphics& g) override;
   void setElevationPattern(AudioElementSpatialLayout::Elevation elevation);
   void setFlatHeight(float height) {
     currentFlatHeight_ = Coordinates::toRoomNdc(0.f, 0.f, height).a[1];

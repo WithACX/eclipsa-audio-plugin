@@ -152,13 +152,13 @@ const Face kIsoBackFace = {
     juce::Colours::transparentBlack,
     FaceTag::kIsoBack};
 
-// A screen centred on the front wall, spanning the middle third of its width
-// and height. Wound like kFrontFace.
+// A screen centred on the front wall, spanning three quarters of its width and
+// height. Wound like kFrontFace.
 const Face kFrontScreenFace = {
-    {Coordinates::Point4D{-1.f / 3.f, 1.f / 3.f, -1.f, 1.f},
-     Coordinates::Point4D{1.f / 3.f, 1.f / 3.f, -1.f, 1.f},
-     Coordinates::Point4D{1.f / 3.f, -1.f / 3.f, -1.f, 1.f},
-     Coordinates::Point4D{-1.f / 3.f, -1.f / 3.f, -1.f, 1.f}},
+    {Coordinates::Point4D{-0.75f, 0.75f, -1.f, 1.f},
+     Coordinates::Point4D{0.75f, 0.75f, -1.f, 1.f},
+     Coordinates::Point4D{0.75f, -0.75f, -1.f, 1.f},
+     Coordinates::Point4D{-0.75f, -0.75f, -1.f, 1.f}},
     EclipsaColours::roomviewScreen,
     juce::Colours::transparentBlack,
     FaceTag::kScreen};

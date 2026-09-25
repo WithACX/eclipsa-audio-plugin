@@ -170,6 +170,25 @@ const float AudioElementPluginTopView::getTrackScaling(
   return 0.35 * pt.a[FaceLookup::kAxisY] + 1.35;
 }
 
+void AudioElementPluginTopView::drawFace(
+    const std::array<Coordinates::Point2D, 4>& faceVerts, const juce::Colour& c,
+    juce::Graphics& g) {
+  if (c != EclipsaColours::roomviewScreen) {
+    PerspectiveRoomView::drawFace(faceVerts, c, g);
+    return;
+  }
+  // The screen is filled without the wall outline, so it reads as an object on
+  // the wall rather than a panel of it.
+  juce::Path screenPath;
+  screenPath.startNewSubPath(faceVerts[0].a[0], faceVerts[0].a[1]);
+  for (size_t i = 1; i < faceVerts.size(); ++i) {
+    screenPath.lineTo(faceVerts[i].a[0], faceVerts[i].a[1]);
+  }
+  screenPath.closeSubPath();
+  g.setColour(c);
+  g.fillPath(screenPath);
+}
+
 void AudioElementPluginTopView::drawTrack(const DrawableTrack& track,
                                           juce::Graphics& g) {
   // Determine the size of the outer track volume indicator based on the

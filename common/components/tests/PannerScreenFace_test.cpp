@@ -40,12 +40,12 @@ TEST(PannerScreenFace, CornersLieOnTheFrontWall) {
   }
 }
 
-// Every screen corner sits a third of the way out in width and height.
-TEST(PannerScreenFace, CornersSpanTheMiddleThird) {
+// Every screen corner sits three quarters of the way out in width and height.
+TEST(PannerScreenFace, CornersSpanThreeQuartersOfTheWall) {
   for (const Coordinates::Point4D& corner :
        FaceLookup::kFrontScreenFace.cornerVertices) {
-    EXPECT_FLOAT_EQ(std::abs(corner.a[FaceLookup::kAxisX]), 1.f / 3.f);
-    EXPECT_FLOAT_EQ(std::abs(corner.a[FaceLookup::kAxisY]), 1.f / 3.f);
+    EXPECT_FLOAT_EQ(std::abs(corner.a[FaceLookup::kAxisX]), 0.75f);
+    EXPECT_FLOAT_EQ(std::abs(corner.a[FaceLookup::kAxisY]), 0.75f);
   }
 }
 
