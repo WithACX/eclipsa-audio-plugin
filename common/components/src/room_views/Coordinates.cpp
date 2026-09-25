@@ -56,9 +56,15 @@ Point2D toWindow(const Mat4& transformMat, const WindowData& windowData,
           -h2 * ndcPoint.a[1] + windowData.bottomCornerY - h2};
 }
 
-Point4D fromTopViewWindow(const Mat4& transformMat,
-                          const WindowData& windowData,
-                          const Point2D& windowPoint, const float ndcUp) {
+std::optional<Point4D> fromTopViewWindow(const Mat4& transformMat,
+                                         const WindowData& windowData,
+                                         const Point2D& windowPoint,
+                                         const float ndcUp) {
+  // A host can collapse the editor mid-drag, and the division below would hand
+  // fromRoomNdc a non-finite value, which std::lround does not define.
+  if (windowData.width <= 0.f || windowData.height <= 0.f) {
+    return std::nullopt;
+  }
   // Recover the NDC coordinates toWindow mapped into the window.
   const float w2 = windowData.width / 2;
   const float h2 = windowData.height / 2;
@@ -76,8 +82,8 @@ Point4D fromTopViewWindow(const Mat4& transformMat,
   const float kLeftRightScale = kAtUnitLeftRight.a[0] - kAtCentre.a[0];
   const float kFrontBackScale = kAtUnitFrontBack.a[1] - kAtCentre.a[1];
 
-  return {(ndcX * kDivisor - kAtCentre.a[0]) / kLeftRightScale, ndcUp,
-          (ndcY * kDivisor - kAtCentre.a[1]) / kFrontBackScale, 1.f};
+  return Point4D{(ndcX * kDivisor - kAtCentre.a[0]) / kLeftRightScale, ndcUp,
+                 (ndcY * kDivisor - kAtCentre.a[1]) / kFrontBackScale, 1.f};
 }
 
 Mat4 getIsoViewTransform() {

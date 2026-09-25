@@ -136,8 +136,10 @@ Coordinates::PositionParameters projectAndInvert(const int x, const int y,
       Coordinates::toRoomNdc((float)x, (float)y, (float)z);
   const Coordinates::Point2D kWindow = Coordinates::toWindow(
       Coordinates::getTopViewTransform(), kTestWindow, kNdc);
-  return Coordinates::fromRoomNdc(Coordinates::fromTopViewWindow(
-      Coordinates::getTopViewTransform(), kTestWindow, kWindow, kNdc.a[1]));
+  return Coordinates::fromRoomNdc(
+      Coordinates::fromTopViewWindow(Coordinates::getTopViewTransform(),
+                                     kTestWindow, kWindow, kNdc.a[1])
+          .value());
 }
 }  // namespace
 
@@ -170,8 +172,10 @@ TEST(test_room_coordinates, topViewWindowInverseIsHeightDependent) {
   const Coordinates::Point2D kOffCentre = {480.f, 120.f};
   const auto kAtHeight = [&kOffCentre](const int z) {
     const float kNdcUp = Coordinates::toRoomNdc(0.f, 0.f, (float)z).a[1];
-    return Coordinates::fromRoomNdc(Coordinates::fromTopViewWindow(
-        Coordinates::getTopViewTransform(), kTestWindow, kOffCentre, kNdcUp));
+    return Coordinates::fromRoomNdc(
+        Coordinates::fromTopViewWindow(Coordinates::getTopViewTransform(),
+                                       kTestWindow, kOffCentre, kNdcUp)
+            .value());
   };
 
   const Coordinates::PositionParameters kLow = kAtHeight(-50);
@@ -191,10 +195,25 @@ TEST(test_room_coordinates, topViewWindowInversePreservesTheGivenHeight) {
     const float kNdcUp = Coordinates::toRoomNdc(0.f, 0.f, (float)z).a[1];
     const Coordinates::Point4D kRoomNdc =
         Coordinates::fromTopViewWindow(Coordinates::getTopViewTransform(),
-                                       kTestWindow, {300.f, 200.f}, kNdcUp);
+                                       kTestWindow, {300.f, 200.f}, kNdcUp)
+            .value();
     EXPECT_NEAR(kRoomNdc.a[1], kNdcUp, kTolerance);
     EXPECT_NEAR(kRoomNdc.a[3], 1.f, kTolerance);
     EXPECT_EQ(Coordinates::fromRoomNdc(kRoomNdc).z, z);
+  }
+}
+
+// A window with no width or no height names no room position.
+TEST(test_room_coordinates, topViewWindowInverseRejectsAnEmptyWindow) {
+  const Coordinates::Point2D kPointer = {0.f, 0.f};
+  for (const Coordinates::WindowData& kEmpty :
+       {Coordinates::WindowData{0.f, 400.f, 0.f, 400.f},
+        Coordinates::WindowData{0.f, 0.f, 600.f, 0.f},
+        Coordinates::WindowData{0.f, 0.f, 0.f, 0.f}}) {
+    EXPECT_FALSE(Coordinates::fromTopViewWindow(
+                     Coordinates::getTopViewTransform(), kEmpty, kPointer, 0.f)
+                     .has_value())
+        << "at " << kEmpty.width << " x " << kEmpty.height;
   }
 }
 
@@ -291,10 +310,11 @@ TEST(test_room_coordinates, planPlaneDragConversionRoundTripsAtEveryHeight) {
                                  /*any height*/ -11.f));
       const Coordinates::Point2D kWindow = Coordinates::toWindow(
           Coordinates::getTopViewTransform(), kTestWindow, kDrawn);
-      const Coordinates::PositionParameters kBack =
-          Coordinates::fromRoomNdc(Coordinates::fromTopViewWindow(
-              Coordinates::getTopViewTransform(), kTestWindow, kWindow,
-              Coordinates::kPlanPlaneUp));
+      const Coordinates::PositionParameters kBack = Coordinates::fromRoomNdc(
+          Coordinates::fromTopViewWindow(Coordinates::getTopViewTransform(),
+                                         kTestWindow, kWindow,
+                                         Coordinates::kPlanPlaneUp)
+              .value());
 
       EXPECT_EQ(kBack.x, x) << "at (" << x << ", " << y << ")";
       EXPECT_EQ(kBack.y, y) << "at (" << x << ", " << y << ")";
@@ -315,9 +335,11 @@ TEST(test_room_coordinates, aHeightTrackingDragBifurcatesUnderTheDome) {
   const auto kSettleFrom = [&kPointer](const float startRadius) {
     float radius = startRadius;
     for (int i = 0; i < 400; ++i) {
-      const Coordinates::Point4D kNdc = Coordinates::fromTopViewWindow(
-          Coordinates::getTopViewTransform(), kTestWindow, kPointer,
-          domeHeightAt(radius));
+      const Coordinates::Point4D kNdc =
+          Coordinates::fromTopViewWindow(Coordinates::getTopViewTransform(),
+                                         kTestWindow, kPointer,
+                                         domeHeightAt(radius))
+              .value();
       radius = std::min(1.f, std::abs(kNdc.a[0]));
     }
     return radius;
@@ -336,9 +358,11 @@ TEST(test_room_coordinates, thePlanPlaneDragResolvesOnePositionFromAnyStart) {
   const auto kResolveFrom = [&kPointer](const float startRadius) {
     float radius = startRadius;
     for (int i = 0; i < 8; ++i) {
-      const Coordinates::Point4D kNdc = Coordinates::fromTopViewWindow(
-          Coordinates::getTopViewTransform(), kTestWindow, kPointer,
-          Coordinates::kPlanPlaneUp);
+      const Coordinates::Point4D kNdc =
+          Coordinates::fromTopViewWindow(Coordinates::getTopViewTransform(),
+                                         kTestWindow, kPointer,
+                                         Coordinates::kPlanPlaneUp)
+              .value();
       radius = std::min(1.f, std::abs(kNdc.a[0]));
     }
     return radius;
@@ -385,8 +409,10 @@ TEST(test_room_coordinates, domeIndicatorAnchorSitsOnTheMarkerInsideTheRoom) {
           Coordinates::toWindow(Coordinates::getTopViewTransform(), kTestWindow,
                                 Coordinates::toPlanPlane(kPlan));
 
-      const Coordinates::Point4D kAnchor = Coordinates::fromTopViewWindow(
-          Coordinates::getTopViewTransform(), kTestWindow, kMarker, kHeight);
+      const Coordinates::Point4D kAnchor =
+          Coordinates::fromTopViewWindow(Coordinates::getTopViewTransform(),
+                                         kTestWindow, kMarker, kHeight)
+              .value();
       const Coordinates::Point2D kAnchorOnScreen = Coordinates::toWindow(
           Coordinates::getTopViewTransform(), kTestWindow, kAnchor);
 
