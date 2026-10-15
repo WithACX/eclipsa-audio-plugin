@@ -25,6 +25,8 @@
 #include <gtest/gtest.h>
 
 #include <cmath>
+#include <cstring>
+#include <new>
 
 namespace {
 
@@ -56,6 +58,31 @@ TEST(PannerHeadOrder, HeadFirstForFlatAtOrAboveTheHead) {
   EXPECT_TRUE(ListenerHead::drawnBeforeElevation(Elevation::kFlat, 1.f));
 }
 
+// Exposes the speaker draw decision, which reads the display flag.
+class SpeakerDrawProbe : public AudioElementPluginTopView {
+ public:
+  using AudioElementPluginTopView::AudioElementPluginTopView;
+  bool drawsCentreSpeaker() const {
+    DrawableSpeaker speaker{};
+    speaker.tag = SpeakerLookup::kC;
+    return speakerIsDrawn(speaker);
+  }
+};
+
+// A view built over dirty memory draws no speakers until a screen enables
+// them.
+TEST(PannerDisplayFlags, SpeakersOffUntilEnabled) {
+  const juce::ScopedJuceInitialiser_GUI kJuce;
+  SpeakerMonitorData monitorData;
+  alignas(SpeakerDrawProbe) unsigned char storage[sizeof(SpeakerDrawProbe)];
+  std::memset(storage, 0xFF, sizeof(storage));
+  SpeakerDrawProbe* view = new (storage) SpeakerDrawProbe(monitorData);
+  EXPECT_FALSE(view->drawsCentreSpeaker());
+  view->setDisplaySpeakers(true);
+  EXPECT_TRUE(view->drawsCentreSpeaker());
+  view->~SpeakerDrawProbe();
+}
+
 // Over a Flat surface below it, the head keeps its own alpha rather than
 // taking the surface's.
 TEST(PannerHeadRender, HeadOverFlatSurfaceKeepsFullOpacity) {
@@ -65,10 +92,6 @@ TEST(PannerHeadRender, HeadOverFlatSurfaceKeepsFullOpacity) {
   monitorData.reinitializeLoudnesses(2);
   AudioElementPluginTopView view(monitorData);
   view.setBounds(0, 0, kSize, kSize);
-  // The view leaves these flags uninitialised.
-  view.setDisplaySpeakers(false);
-  view.setDisplayLabels(false);
-  view.setDisplayTracks(true);
   view.setElevationPattern(Elevation::kFlat);
   view.setFlatHeight(-25.f);
   // Keeps the source marker clear of the head.
