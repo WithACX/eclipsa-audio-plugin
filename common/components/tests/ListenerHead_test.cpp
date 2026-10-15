@@ -65,6 +65,10 @@ TEST(PannerHeadRender, HeadOverFlatSurfaceKeepsFullOpacity) {
   monitorData.reinitializeLoudnesses(2);
   AudioElementPluginTopView view(monitorData);
   view.setBounds(0, 0, kSize, kSize);
+  // The view leaves these flags uninitialised.
+  view.setDisplaySpeakers(false);
+  view.setDisplayLabels(false);
+  view.setDisplayTracks(true);
   view.setElevationPattern(Elevation::kFlat);
   view.setFlatHeight(-25.f);
   // Keeps the source marker clear of the head.
