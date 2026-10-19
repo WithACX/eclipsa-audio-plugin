@@ -33,6 +33,23 @@ ExportProfile exportProfileFromString(const juce::String& str) {
   return ExportProfile::kAdvanced;
 }
 
+ExportProfile exportProfileFromOptionIndex(const int index) {
+  if (index < 0 || index >= static_cast<int>(kExportProfileOptions.size())) {
+    return ExportProfile::kAdvanced;
+  }
+  return kExportProfileOptions[index];
+}
+
+int optionIndexForExportProfile(const ExportProfile profile) {
+  for (int i = 0; i < static_cast<int>(kExportProfileOptions.size()); ++i) {
+    if (kExportProfileOptions[i] == profile) {
+      return i;
+    }
+  }
+  jassertfalse;
+  return 0;
+}
+
 RoomSetup::RoomSetup() : RepositoryItemBase({}), dawWarningDismissed_(false) {}
 
 RoomSetup::RoomSetup(RoomLayout layout)

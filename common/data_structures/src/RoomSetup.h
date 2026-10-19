@@ -64,6 +64,7 @@ static RoomLayout fetchLayoutFromDescription(const juce::String& desc) {
 // loudness and mix presentations, and limits exports; Advanced does not.
 enum class ExportProfile { kYouTube, kAdvanced };
 
+// Dropdown order; an option's index is its position here.
 static const std::array<ExportProfile, 2> kExportProfileOptions = {
     ExportProfile::kYouTube, ExportProfile::kAdvanced};
 
@@ -72,6 +73,11 @@ juce::String exportProfileToString(ExportProfile profile);
 // Missing or unknown strings map to Advanced, so sessions saved before the
 // profile existed keep their unrestricted behavior.
 ExportProfile exportProfileFromString(const juce::String& str);
+
+// An out-of-range index maps to Advanced.
+ExportProfile exportProfileFromOptionIndex(int index);
+
+int optionIndexForExportProfile(ExportProfile profile);
 
 class RoomSetup final : public RepositoryItemBase {
  public:

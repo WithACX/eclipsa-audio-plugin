@@ -97,3 +97,24 @@ TEST(ExportProfile, unknown_value_loads_advanced) {
   EXPECT_EQ(RoomSetup::fromTree(tree).getExportProfile(),
             ExportProfile::kAdvanced);
 }
+
+// Dropdown index 0 is YouTube and index 1 is Advanced.
+TEST(ExportProfileOption, index_maps_to_profile) {
+  EXPECT_EQ(exportProfileFromOptionIndex(0), ExportProfile::kYouTube);
+  EXPECT_EQ(exportProfileFromOptionIndex(1), ExportProfile::kAdvanced);
+}
+
+// Each profile maps back to the dropdown index it came from.
+TEST(ExportProfileOption, profile_maps_to_index) {
+  EXPECT_EQ(optionIndexForExportProfile(ExportProfile::kYouTube), 0);
+  EXPECT_EQ(optionIndexForExportProfile(ExportProfile::kAdvanced), 1);
+  for (int i = 0; i < static_cast<int>(kExportProfileOptions.size()); ++i) {
+    EXPECT_EQ(optionIndexForExportProfile(exportProfileFromOptionIndex(i)), i);
+  }
+}
+
+// An index outside the dropdown, such as none selected, maps to Advanced.
+TEST(ExportProfileOption, out_of_range_index_is_advanced) {
+  EXPECT_EQ(exportProfileFromOptionIndex(-1), ExportProfile::kAdvanced);
+  EXPECT_EQ(exportProfileFromOptionIndex(2), ExportProfile::kAdvanced);
+}
