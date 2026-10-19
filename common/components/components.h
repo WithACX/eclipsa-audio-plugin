@@ -41,6 +41,7 @@ END_JUCE_MODULE_DECLARATION
 #include "src/ExportErrorBanner.h"
 #include "src/HeaderBar.h"
 #include "src/Icons.h"
+#include "src/LoudnessWarningBanner.h"
 #include "src/MainEditor.h"
 #include "src/RoomSetupScreen.h"
 #include "src/RoundedRectangle.h"
