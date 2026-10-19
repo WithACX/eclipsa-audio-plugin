@@ -14,6 +14,25 @@
 
 #include "RoomSetup.h"
 
+juce::String exportProfileToString(const ExportProfile profile) {
+  switch (profile) {
+    case ExportProfile::kYouTube:
+      return "YouTube";
+    case ExportProfile::kAdvanced:
+      return "Advanced";
+  }
+  return "Advanced";
+}
+
+ExportProfile exportProfileFromString(const juce::String& str) {
+  for (const ExportProfile profile : kExportProfileOptions) {
+    if (exportProfileToString(profile) == str) {
+      return profile;
+    }
+  }
+  return ExportProfile::kAdvanced;
+}
+
 RoomSetup::RoomSetup() : RepositoryItemBase({}), dawWarningDismissed_(false) {}
 
 RoomSetup::RoomSetup(RoomLayout layout)
@@ -24,14 +43,16 @@ RoomSetup::RoomSetup(RoomLayout layout)
 RoomSetup::RoomSetup(const RoomLayout layout, const bool drawSpeakers,
                      const bool drawSpeakerLabels, const bool drawTracks,
                      const juce::String& currRoomView,
-                     const bool dawWarningDismissed)
+                     const bool dawWarningDismissed,
+                     const ExportProfile exportProfile)
     : RepositoryItemBase({}),
       speakerLayout_(layout),
       drawSpeakers_(drawSpeakers),
       drawSpeakerLabels_(drawSpeakerLabels),
       drawTracks_(drawTracks),
       currentRoomView_(currRoomView),
-      dawWarningDismissed_(dawWarningDismissed) {}
+      dawWarningDismissed_(dawWarningDismissed),
+      exportProfile_(exportProfile) {}
 
 juce::ValueTree RoomSetup::toValueTree() const {
   return {{kTreeType},
@@ -42,13 +63,17 @@ juce::ValueTree RoomSetup::toValueTree() const {
               {kDrawTracks, drawTracks_},
               {kCurrRoomView, currentRoomView_},
               {kDawWarningDismissed, dawWarningDismissed_},
+              {kExportProfile, exportProfileToString(exportProfile_)},
           }};
 }
 
 RoomSetup RoomSetup::fromTree(const juce::ValueTree tree) {
   jassert(tree.hasProperty(kSpeakerLayout));
   bool dawWarningDismissed = tree.getProperty(kDawWarningDismissed, false);
+  const ExportProfile exportProfile =
+      exportProfileFromString(tree.getProperty(kExportProfile, {}).toString());
   return RoomSetup(fetchLayoutFromDescription(tree[kSpeakerLayout]),
                    tree[kDrawSpeakers], tree[kDrawSpeakerLabels],
-                   tree[kDrawTracks], tree[kCurrRoomView], dawWarningDismissed);
+                   tree[kDrawTracks], tree[kCurrRoomView], dawWarningDismissed,
+                   exportProfile);
 }

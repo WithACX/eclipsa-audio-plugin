@@ -60,3 +60,40 @@ TEST(test_room_setup, daw_warning_dismissal_persistence) {
   // 4. Verify the state was persisted
   ASSERT_TRUE(roomSetup2.getDawWarningDismissed());
 }
+// A new RoomSetup starts on the YouTube profile.
+TEST(ExportProfile, default_is_youtube) {
+  const RoomSetup setup;
+  EXPECT_EQ(setup.getExportProfile(), ExportProfile::kYouTube);
+  EXPECT_EQ(RoomSetup(speakerLayoutConfigurationOptions[2]).getExportProfile(),
+            ExportProfile::kYouTube);
+}
+
+// Each profile survives a toValueTree/fromTree round trip.
+TEST(ExportProfile, round_trip_preserves_value) {
+  for (const ExportProfile profile :
+       {ExportProfile::kYouTube, ExportProfile::kAdvanced}) {
+    RoomSetup setup;
+    setup.setExportProfile(profile);
+    const juce::ValueTree tree = setup.toValueTree();
+    EXPECT_EQ(tree[RoomSetup::kExportProfile].toString(),
+              exportProfileToString(profile));
+    EXPECT_EQ(RoomSetup::fromTree(tree).getExportProfile(), profile);
+  }
+}
+
+// A tree saved before the profile existed loads as Advanced.
+TEST(ExportProfile, missing_value_loads_advanced) {
+  juce::ValueTree tree = RoomSetup().toValueTree();
+  tree.removeProperty(RoomSetup::kExportProfile, nullptr);
+  ASSERT_FALSE(tree.hasProperty(RoomSetup::kExportProfile));
+  EXPECT_EQ(RoomSetup::fromTree(tree).getExportProfile(),
+            ExportProfile::kAdvanced);
+}
+
+// An unrecognized stored string loads as Advanced.
+TEST(ExportProfile, unknown_value_loads_advanced) {
+  juce::ValueTree tree = RoomSetup().toValueTree();
+  tree.setProperty(RoomSetup::kExportProfile, "Vimeo", nullptr);
+  EXPECT_EQ(RoomSetup::fromTree(tree).getExportProfile(),
+            ExportProfile::kAdvanced);
+}
