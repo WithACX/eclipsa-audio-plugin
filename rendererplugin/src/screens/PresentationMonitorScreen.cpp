@@ -48,7 +48,8 @@ PresentationMonitorScreen::PresentationMonitorScreen(
     ChannelMonitorData& channelMonitorData, int totalChannelCount)
     : elementRoutingScreen_(editor, &repos.aeRepo_,
                             &repos.audioElementSpatialLayoutRepo_,
-                            &repos.fioRepo_, &repos.mpRepo_, totalChannelCount),
+                            &repos.fioRepo_, &repos.mpRepo_,
+                            &repos.roomSetupRepo_, totalChannelCount),
       editPresentationScreen_(editor, &repos.aeRepo_, &repos.mpRepo_,
                               &repos.activeMPRepo_),
       presentationTabs_(std::make_unique<CustomTabbedComponent>()),

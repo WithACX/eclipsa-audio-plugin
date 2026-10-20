@@ -14,3 +14,4 @@
 
 eclipsa_add_test(test_renderer_processor RendererProcessor_test.cpp "RendererPlugin;processors")
 eclipsa_add_test(test_renderer_version_converter RendererVersionConverter_test.cpp "RendererPlugin;processors")
+eclipsa_add_test(test_element_routing_profile ElementRoutingProfile_test.cpp "RendererPlugin;processors")
