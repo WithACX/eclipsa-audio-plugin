@@ -21,9 +21,16 @@
 #include <functional>
 #include <vector>
 
+#include "data_repository/implementation/ActiveMixPresentationRepository.h"
+#include "data_repository/implementation/AudioElementRepository.h"
 #include "data_repository/implementation/FileExportRepository.h"
+#include "data_repository/implementation/MixPresentationRepository.h"
 #include "data_repository/implementation/RoomSetupRepository.h"
+#include "data_structures/src/ActiveMixPresentation.h"
+#include "data_structures/src/AudioElement.h"
 #include "data_structures/src/FileExport.h"
+#include "data_structures/src/MixPresentation.h"
+#include "processors/render/RenderProcessor.h"
 
 namespace {
 class TestFileExportRepository : public FileExportRepository {
@@ -35,6 +42,28 @@ class TestRoomSetupRepository : public RoomSetupRepository {
  public:
   TestRoomSetupRepository() : RoomSetupRepository(juce::ValueTree{"test"}) {}
 };
+
+class SilentBinauralMix : public BinauralMixSource {
+ public:
+  SilentBinauralMix() { mix_.clear(); }
+  const juce::AudioBuffer<float>& getBinauralMix() const override {
+    return mix_;
+  }
+
+ private:
+  juce::AudioBuffer<float> mix_{2, 512};
+};
+
+void setRoomLayout(RoomSetupRepository& repository,
+                   Speakers::AudioElementSpeakerLayout layout) {
+  RoomSetup roomSetup = repository.get();
+  for (const RoomLayout& kOption : speakerLayoutConfigurationOptions) {
+    if (kOption.getRoomSpeakerLayout() == layout) {
+      roomSetup.setSpeakerLayout(kOption);
+    }
+  }
+  repository.update(roomSetup);
+}
 
 // Wraps a real FileWriter (so construction still performs a real open
 // against a real, writable path) but lets a test force write()/close() to
@@ -118,8 +147,9 @@ class WavFileOutputTests : public ::testing::Test {
  protected:
   TestFileExportRepository fileExportRepository;
   TestRoomSetupRepository roomSetupRepository;
+  SilentBinauralMix binauralMix;
   TestableWavFileOutputProcessor processor{fileExportRepository,
-                                           roomSetupRepository};
+                                           roomSetupRepository, binauralMix};
 };
 }  // namespace
 
@@ -402,13 +432,7 @@ TEST_P(WavFileOutputRoomOrder, writes_channels_in_export_set_order) {
       ("wav_room_order_" + kCase.layout.toString().toStdString() + ".wav");
   std::filesystem::remove(kOutPath);
 
-  RoomSetup roomSetup = roomSetupRepository.get();
-  for (const RoomLayout& kOption : speakerLayoutConfigurationOptions) {
-    if (kOption.getRoomSpeakerLayout() == kCase.layout) {
-      roomSetup.setSpeakerLayout(kOption);
-    }
-  }
-  roomSetupRepository.update(roomSetup);
+  setRoomLayout(roomSetupRepository, kCase.layout);
   ASSERT_EQ(roomSetupRepository.get().getSpeakerLayout().getRoomSpeakerLayout(),
             kCase.layout);
 
@@ -537,4 +561,195 @@ TEST(WavFileOutputFileWriter,
   EXPECT_EQ(writer.getFramesWritten(), 0);
   writer.close();
   std::filesystem::remove(kOutPath);
+}
+
+namespace {
+class NullHostProcessor final : public ProcessorBase {
+ public:
+  void processBlock(juce::AudioBuffer<float>&, juce::MidiBuffer&) override {}
+};
+
+constexpr int kBinauralBlockSize = 128;
+constexpr int kBinauralBlocks = 4;
+constexpr float kMixGain = 0.5f;
+
+// A RenderProcessor with its own repositories, rendering a stereo element in
+// binaural headphone mode and a 5.1 element in stereo headphone mode.
+struct RenderRig {
+  explicit RenderRig(Speakers::AudioElementSpeakerLayout roomLayout,
+                     float mixGain = kMixGain)
+      : state("rig"),
+        roomSetup(
+            state.getOrCreateChildWithName(RoomSetup::kTreeType, nullptr)),
+        audioElements(
+            state.getOrCreateChildWithName(AudioElement::kTreeType, nullptr)),
+        mixPresentations(state.getOrCreateChildWithName(
+            MixPresentation::kTreeType, nullptr)),
+        activeMix(state.getOrCreateChildWithName(
+            ActiveMixPresentation::kTreeType, nullptr)),
+        renderer(&host, &roomSetup, &audioElements, &mixPresentations,
+                 &activeMix, monitorData) {
+    setRoomLayout(roomSetup, roomLayout);
+    const AudioElement kStereo(juce::Uuid(), "Stereo", Speakers::kStereo, 0);
+    const AudioElement kSurround(juce::Uuid(), "5.1", Speakers::k5Point1, 2);
+    audioElements.add(kStereo);
+    audioElements.add(kSurround);
+    const juce::Uuid kMixId;
+    MixPresentation mix(kMixId, "Mix", mixGain,
+                        LanguageData::MixLanguages::English, {});
+    mix.addAudioElement(kStereo.getId(), 1.f, kStereo.getName(), true);
+    mix.addAudioElement(kSurround.getId(), 1.f, kSurround.getName(), false);
+    mixPresentations.updateOrAdd(mix);
+    ActiveMixPresentation active = activeMix.get();
+    active.updateActiveMixId(kMixId);
+    activeMix.update(active);
+    renderer.prepareToPlay(48000, kBinauralBlockSize);
+  }
+
+  juce::ValueTree state;
+  RoomSetupRepository roomSetup;
+  AudioElementRepository audioElements;
+  MixPresentationRepository mixPresentations;
+  ActiveMixRepository activeMix;
+  SpeakerMonitorData monitorData;
+  NullHostProcessor host;
+  RenderProcessor renderer;
+};
+
+// Input for block `block`: a distinct sine on each of the 8 element channels.
+juce::AudioBuffer<float> elementInput(int block) {
+  juce::AudioBuffer<float> buffer(12, kBinauralBlockSize);
+  buffer.clear();
+  for (int ch = 0; ch < 8; ++ch) {
+    for (int i = 0; i < kBinauralBlockSize; ++i) {
+      const int kSample = block * kBinauralBlockSize + i;
+      buffer.setSample(
+          ch, i,
+          0.2f * std::sin(0.01f * static_cast<float>((ch + 1) * kSample)));
+    }
+  }
+  return buffer;
+}
+
+class WavFileOutputBinaural : public ::testing::Test {
+ protected:
+  // Runs a BinauralWav export of kBinauralBlocks blocks with `rig`'s room,
+  // feeding each block through the renderer first as RendererProcessor does.
+  void exportBinaural(RenderRig& rig, const std::filesystem::path& outPath) {
+    TestFileExportRepository fileExportRepository;
+    TestableWavFileOutputProcessor processor(fileExportRepository,
+                                             rig.roomSetup, rig.renderer);
+    processor.prepareToPlay(48000, kBinauralBlockSize);
+    FileExport config = fileExportRepository.get();
+    config.setAudioFileFormat(AudioFileFormat::BinauralWav);
+    config.setExportAudio(true);
+    config.setSampleRate(48000);
+    config.setBitDepth(32);
+    config.setAudioCodec(AudioCodec::LPCM);
+    config.setExportFile(outPath.string());
+    config.setManualExport(false);
+    fileExportRepository.update(config);
+    config.setManualExport(true);
+    fileExportRepository.update(config);
+    processor.runPendingTasks();
+
+    juce::MidiBuffer midi;
+    for (int block = 0; block < kBinauralBlocks; ++block) {
+      juce::AudioBuffer<float> buffer = elementInput(block);
+      rig.renderer.processBlock(buffer, midi);
+      processor.processBlock(buffer, midi);
+    }
+
+    config = fileExportRepository.get();
+    config.setManualExport(false);
+    fileExportRepository.update(config);
+    processor.runPendingTasks();
+    EXPECT_EQ(fileExportRepository.get().getExportError(),
+              ExportError::kNoError);
+  }
+};
+}  // namespace
+
+// A BinauralWav export from a 7.1.4 room writes, for every block, the same 2
+// channels a renderer with the room set to Binaural plays back: the binaural
+// mix times the mix gain.
+TEST_F(WavFileOutputBinaural, matches_binaural_room_playback_every_block) {
+  const std::filesystem::path kOutPath =
+      std::filesystem::current_path() / "wav_binaural_714.wav";
+  std::filesystem::remove(kOutPath);
+  RenderRig exportRig(Speakers::k7Point1Point4);
+  exportBinaural(exportRig, kOutPath);
+
+  RenderRig binauralRoom(Speakers::kBinaural);
+  RenderRig unityGainBinauralRoom(Speakers::kBinaural, 1.f);
+  juce::AudioBuffer<float> expected(2, kBinauralBlocks * kBinauralBlockSize);
+  juce::AudioBuffer<float> unityGain(2, kBinauralBlocks * kBinauralBlockSize);
+  juce::MidiBuffer midi;
+  for (int block = 0; block < kBinauralBlocks; ++block) {
+    juce::AudioBuffer<float> buffer = elementInput(block);
+    binauralRoom.renderer.processBlock(buffer, midi);
+    juce::AudioBuffer<float> unityBuffer = elementInput(block);
+    unityGainBinauralRoom.renderer.processBlock(unityBuffer, midi);
+    for (int ch = 0; ch < 2; ++ch) {
+      expected.copyFrom(ch, block * kBinauralBlockSize, buffer, ch, 0,
+                        kBinauralBlockSize);
+      unityGain.copyFrom(ch, block * kBinauralBlockSize, unityBuffer, ch, 0,
+                         kBinauralBlockSize);
+    }
+  }
+
+  auto reader = readWav(kOutPath);
+  ASSERT_NE(reader, nullptr);
+  ASSERT_EQ(reader->numChannels, 2u);
+  ASSERT_EQ(reader->lengthInSamples, kBinauralBlocks * kBinauralBlockSize);
+  juce::AudioBuffer<float> written(2, kBinauralBlocks * kBinauralBlockSize);
+  reader->read(&written, 0, written.getNumSamples(), 0, true, true);
+  float peak = 0.f;
+  for (int ch = 0; ch < 2; ++ch) {
+    for (int i = 0; i < written.getNumSamples(); ++i) {
+      ASSERT_FLOAT_EQ(written.getSample(ch, i), expected.getSample(ch, i))
+          << "channel " << ch << " block " << i / kBinauralBlockSize;
+      ASSERT_NEAR(written.getSample(ch, i),
+                  kMixGain * unityGain.getSample(ch, i), 1e-6f)
+          << "channel " << ch << " block " << i / kBinauralBlockSize;
+      peak = std::max(peak, std::abs(expected.getSample(ch, i)));
+    }
+  }
+  EXPECT_GT(peak, 0.f);
+  reader.reset();
+  std::filesystem::remove(kOutPath);
+}
+
+// A BinauralWav export leaves the room setup untouched.
+TEST_F(WavFileOutputBinaural, leaves_room_setup_unchanged) {
+  const std::filesystem::path kOutPath =
+      std::filesystem::current_path() / "wav_binaural_room.wav";
+  std::filesystem::remove(kOutPath);
+  RenderRig rig(Speakers::k7Point1Point4);
+  const juce::ValueTree kBefore =
+      rig.state.getChildWithName(RoomSetup::kTreeType).createCopy();
+  exportBinaural(rig, kOutPath);
+  EXPECT_TRUE(
+      rig.state.getChildWithName(RoomSetup::kTreeType).isEquivalentTo(kBefore));
+  std::filesystem::remove(kOutPath);
+}
+
+// BinauralWav writes a 2-channel stereo file whatever the room layout.
+TEST_F(WavFileOutputBinaural, writes_two_channels_for_any_room) {
+  for (const auto kLayout :
+       {Speakers::kStereo, Speakers::k5Point1, Speakers::k7Point1Point4}) {
+    const std::filesystem::path kOutPath =
+        std::filesystem::current_path() /
+        ("wav_binaural_" + kLayout.toString().toStdString() + ".wav");
+    std::filesystem::remove(kOutPath);
+    RenderRig rig(kLayout);
+    exportBinaural(rig, kOutPath);
+    auto reader = readWav(kOutPath);
+    ASSERT_NE(reader, nullptr) << kLayout.toString();
+    EXPECT_EQ(reader->numChannels, 2u) << kLayout.toString();
+    EXPECT_EQ(reader->getChannelLayout(), juce::AudioChannelSet::stereo())
+        << kLayout.toString();
+    reader.reset();
+    std::filesystem::remove(kOutPath);
+  }
 }

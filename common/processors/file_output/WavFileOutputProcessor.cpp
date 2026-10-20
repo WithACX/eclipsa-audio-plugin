@@ -25,9 +25,11 @@
 
 WavFileOutputProcessor::WavFileOutputProcessor(
     FileExportRepository& fileExportRepository,
-    RoomSetupRepository& roomSetupRepository)
+    RoomSetupRepository& roomSetupRepository,
+    const BinauralMixSource& binauralMixSource)
     : fileExportRepository_(fileExportRepository),
       roomSetupRepository_(roomSetupRepository),
+      binauralMixSource_(binauralMixSource),
       numSamples_(0),
       sampleRate_(0),
       performingRender_(false),
@@ -57,12 +59,12 @@ void WavFileOutputProcessor::deferRepositoryUpdate(
   });
 }
 
-WavFileOutputProcessor::RoomWavChannelMap
+WavFileOutputProcessor::WavChannelMap
 WavFileOutputProcessor::getRoomWavChannelMap(
     Speakers::AudioElementSpeakerLayout layout) {
   using ChannelType = juce::AudioChannelSet::ChannelType;
   const juce::Array<ChannelType> kItuOrder = layout.getITUChannelOrdering();
-  RoomWavChannelMap map;
+  WavChannelMap map;
   // Binaural, the one room layout without an ITU order, renders to stereo.
   if (kItuOrder.isEmpty()) {
     map.channelSet = layout.getChannelSet();
@@ -110,19 +112,22 @@ void WavFileOutputProcessor::prepareToPlay(double sampleRate,
   exportBuffer_.setSize(kMaxRoomWavChannels, samplesPerBlock);
 }
 
-bool WavFileOutputProcessor::writeRoomWav(
+bool WavFileOutputProcessor::writeExportBlock(
     const juce::AudioBuffer<float>& buffer) {
-  const int kNumChannels = roomWavChannelMap_.channelSet.size();
-  if (buffer.getNumChannels() < kNumChannels) {
+  const juce::AudioBuffer<float>& source =
+      exportingBinaural_ ? binauralMixSource_.getBinauralMix() : buffer;
+  const int kNumChannels = exportChannelMap_.channelSet.size();
+  const int kNumSamples = buffer.getNumSamples();
+  if (source.getNumChannels() < kNumChannels ||
+      source.getNumSamples() < kNumSamples) {
     jassertfalse;
     return false;
   }
   // Reallocates only if the host exceeds the block size it prepared with.
-  exportBuffer_.setSize(kNumChannels, buffer.getNumSamples(), false, false,
-                        true);
+  exportBuffer_.setSize(kNumChannels, kNumSamples, false, false, true);
   for (int ch = 0; ch < kNumChannels; ++ch) {
-    exportBuffer_.copyFrom(ch, 0, buffer, roomWavChannelMap_.sourceChannels[ch],
-                           0, buffer.getNumSamples());
+    exportBuffer_.copyFrom(ch, 0, source, exportChannelMap_.sourceChannels[ch],
+                           0, kNumSamples);
   }
   return fileWriter_->write(exportBuffer_);
 }
@@ -146,10 +151,10 @@ void WavFileOutputProcessor::processBlock(juce::AudioBuffer<float>& buffer,
           static_cast<juce::int64>(*position->getTimeInSeconds() * sampleRate_);
       if ((endSampleIdx_ == 0) || (currentSample >= startSampleIdx_ &&
                                    currentSample <= endSampleIdx_)) {
-        writeFailed = !writeRoomWav(buffer);
+        writeFailed = !writeExportBlock(buffer);
       }
     } else {
-      writeFailed = !writeRoomWav(buffer);
+      writeFailed = !writeExportBlock(buffer);
     }
   }
   lock_.exit();
@@ -186,7 +191,9 @@ void WavFileOutputProcessor::setNonRealtime(bool isNonRealtime) noexcept {
     RoomSetup roomSetup = roomSetupRepository_.get();
     startSampleIdx_ = configParams.getStartSampleIdx();
     endSampleIdx_ = configParams.getEndSampleIdx();
-    if ((configParams.getAudioFileFormat() == AudioFileFormat::WAV) &&
+    const AudioFileFormat kFormat = configParams.getAudioFileFormat();
+    if ((kFormat == AudioFileFormat::WAV ||
+         kFormat == AudioFileFormat::BinauralWav) &&
         configParams.getExportAudio()) {
       // Every export begins from a clean slate, mirroring
       // FileOutputProcessor::initializeFileExport. Deferred via
@@ -196,11 +203,16 @@ void WavFileOutputProcessor::setNonRealtime(bool isNonRealtime) noexcept {
           [](FileExport& config) { config.setExportError(kNoError); });
       hasRecordedWriteFailure_ = false;
 
-      roomWavChannelMap_ = getRoomWavChannelMap(
-          roomSetup.getSpeakerLayout().getRoomSpeakerLayout());
+      exportingBinaural_ = kFormat == AudioFileFormat::BinauralWav;
+      if (exportingBinaural_) {
+        exportChannelMap_ = {juce::AudioChannelSet::stereo(), {0, 1}};
+      } else {
+        exportChannelMap_ = getRoomWavChannelMap(
+            roomSetup.getSpeakerLayout().getRoomSpeakerLayout());
+      }
       fileWriter_ = createFileWriter(
           configParams.getExportFile(), configParams.getSampleRate(),
-          roomWavChannelMap_.channelSet, 0, configParams.getBitDepth(),
+          exportChannelMap_.channelSet, 0, configParams.getBitDepth(),
           configParams.getAudioCodec());
       if (!fileWriter_->isOpen()) {
         const std::string kFailedFilePath = fileWriter_->getFilePath();
