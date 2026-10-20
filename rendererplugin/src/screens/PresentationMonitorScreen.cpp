@@ -51,7 +51,7 @@ PresentationMonitorScreen::PresentationMonitorScreen(
                             &repos.fioRepo_, &repos.mpRepo_,
                             &repos.roomSetupRepo_, totalChannelCount),
       editPresentationScreen_(editor, &repos.aeRepo_, &repos.mpRepo_,
-                              &repos.activeMPRepo_),
+                              &repos.activeMPRepo_, &repos.roomSetupRepo_),
       presentationTabs_(std::make_unique<CustomTabbedComponent>()),
       repos_(repos),
       mixPresentationRepository_(&repos.mpRepo_),

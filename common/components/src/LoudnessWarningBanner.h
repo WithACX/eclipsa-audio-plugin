@@ -58,14 +58,6 @@ class LoudnessWarningBanner : public WarningBannerBase, private juce::Timer {
     return juce::String(integrated, 1).getDoubleValue() > kThresholdLufs;
   }
 
-  // Shows on a fresh transition into the warning state and hides when it
-  // clears; otherwise keeps the current visibility, so a dismissal holds.
-  static bool nextVisibility(bool wasWarning, bool isWarning, bool visible) {
-    if (!isWarning) return false;
-    if (!wasWarning) return true;
-    return visible;
-  }
-
   static juce::String messageText() {
     return "Audio louder than -14 LUFS will be normalized by YouTube. To "
            "ensure audio sounds correct, reduce integrated loudness to below "

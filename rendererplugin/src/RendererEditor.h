@@ -22,6 +22,7 @@
 #include "components/src/DAWWarningBanner.h"
 #include "components/src/ExportErrorBanner.h"
 #include "components/src/LoudnessWarningBanner.h"
+#include "components/src/MixPresentationWarningBanner.h"
 #include "screens/MonitorScreen.h"
 
 class CustomLookAndFeel : public juce::LookAndFeel_V4 {
@@ -49,7 +50,7 @@ class RendererEditor final : public MainEditor {
 
  private:
   // Banners in stacking order, top first.
-  std::array<WarningBannerBase*, 3> banners();
+  std::array<WarningBannerBase*, 4> banners();
   void addBanners();
 
   CustomLookAndFeel customLookAndFeel_;
@@ -59,6 +60,7 @@ class RendererEditor final : public MainEditor {
   DAWWarningBanner dawWarningBanner_;
   ExportErrorBanner exportErrorBanner_;
   LoudnessWarningBanner loudnessWarningBanner_;
+  MixPresentationWarningBanner mixPresentationWarningBanner_;
   MonitorScreen monitorScreen_;
   juce::Component* currentScreen_;
 

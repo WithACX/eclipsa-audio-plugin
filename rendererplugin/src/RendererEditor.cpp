@@ -66,6 +66,8 @@ RendererEditor::RendererEditor(RendererProcessor& p)
       exportErrorBanner_(&p.getFileExportRepository()),
       loudnessWarningBanner_(p.getSpeakerMonitorData(),
                              &p.getRoomSetupRepository()),
+      mixPresentationWarningBanner_(&p.getRepositories().mpRepo_,
+                                    &p.getRoomSetupRepository()),
       monitorScreen_(p.getRepositories(), p.getSpeakerMonitorData(),
                      p.getChannelMonitorData(),
                      p.getFilePlaybackProcessorData(), *this,
@@ -129,10 +131,14 @@ RendererEditor::RendererEditor(RendererProcessor& p)
 
   addChildComponent(loudnessWarningBanner_);
   loudnessWarningBanner_.onVisibilityChanged = [this] { repaint(); };
+
+  addChildComponent(mixPresentationWarningBanner_);
+  mixPresentationWarningBanner_.onVisibilityChanged = [this] { repaint(); };
 }
 
-std::array<WarningBannerBase*, 3> RendererEditor::banners() {
-  return {&dawWarningBanner_, &exportErrorBanner_, &loudnessWarningBanner_};
+std::array<WarningBannerBase*, 4> RendererEditor::banners() {
+  return {&dawWarningBanner_, &exportErrorBanner_, &loudnessWarningBanner_,
+          &mixPresentationWarningBanner_};
 }
 
 void RendererEditor::addBanners() {
