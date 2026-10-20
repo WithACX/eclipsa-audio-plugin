@@ -7,7 +7,7 @@ flags:
 
 deliver:
   # mode: standard         # force micro | standard | project (default: auto-detect)
-  pr_review: human         # auto | human | both
+  pr_review: auto          # auto | human | both
   admin_bypass: true       # true: standing authorization to merge with
                            # gh pr merge --admin when a branch ruleset
                            # blocks the merge (admin rights required)
