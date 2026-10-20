@@ -121,6 +121,7 @@ class TestableWavFileOutputProcessor : public WavFileOutputProcessor {
   bool forceWriteFailure = false;
   bool forceCloseFailure = false;
   FakeFileWriter* lastFakeWriter = nullptr;
+  int writersCreated = 0;
 
  protected:
   void postToMessageThread(std::function<void()> task) override {
@@ -136,6 +137,7 @@ class TestableWavFileOutputProcessor : public WavFileOutputProcessor {
     fake->forceWriteFailure = forceWriteFailure;
     fake->forceCloseFailure = forceCloseFailure;
     lastFakeWriter = fake;
+    ++writersCreated;
     return fake;
   }
 
@@ -752,4 +754,151 @@ TEST_F(WavFileOutputBinaural, writes_two_channels_for_any_room) {
     reader.reset();
     std::filesystem::remove(kOutPath);
   }
+}
+
+namespace {
+constexpr int kBounceBlockSize = 64;
+constexpr int kBounceBlocks = 6;
+
+class WavFileOutputHostBounce : public WavFileOutputTests {
+ protected:
+  // Configures an export of `format` to `path` with manual export off, as a
+  // host bounce leaves it, and a stale error from an earlier export.
+  void configureExport(AudioFileFormat format,
+                       const std::filesystem::path& path) {
+    setRoomLayout(roomSetupRepository, Speakers::k5Point1);
+    FileExport config = fileExportRepository.get();
+    config.setAudioFileFormat(format);
+    config.setExportAudio(true);
+    config.setSampleRate(48000);
+    config.setBitDepth(24);
+    config.setAudioCodec(AudioCodec::LPCM);
+    config.setExportFile(path.string());
+    config.setManualExport(false);
+    config.setExportError(kFileWriteFailed);
+    fileExportRepository.update(config);
+    processor.prepareToPlay(48000, kBounceBlockSize);
+  }
+
+  void setExportPath(const std::filesystem::path& path) {
+    FileExport config = fileExportRepository.get();
+    config.setExportFile(path.string());
+    fileExportRepository.update(config);
+  }
+
+  // Bounces kBounceBlocks blocks through setNonRealtime, editing the export
+  // path and draining the start's error reset between blocks.
+  void bounceWithExportEdits(const std::filesystem::path& editedPath) {
+    processor.setNonRealtime(true);
+    juce::AudioBuffer<float> buffer(6, kBounceBlockSize);
+    buffer.clear();
+    juce::MidiBuffer midi;
+    for (int block = 0; block < kBounceBlocks; ++block) {
+      processor.processBlock(buffer, midi);
+      if (block == 1) {
+        setExportPath(editedPath);
+      } else if (block == 3) {
+        processor.runPendingTasks();
+      }
+    }
+    processor.setNonRealtime(false);
+    processor.runPendingTasks();
+  }
+};
+}  // namespace
+
+// Repeated setNonRealtime(true) keeps the one open writer, and
+// setNonRealtime(false) while idle creates no file.
+TEST_F(WavFileOutputHostBounce, set_non_realtime_follows_its_argument) {
+  const std::filesystem::path kOutPath =
+      std::filesystem::current_path() / "wav_bounce_idempotent.wav";
+  std::filesystem::remove(kOutPath);
+  configureExport(AudioFileFormat::WAV, kOutPath);
+
+  processor.setNonRealtime(false);
+  EXPECT_EQ(processor.writersCreated, 0);
+  EXPECT_FALSE(std::filesystem::exists(kOutPath));
+
+  processor.setNonRealtime(true);
+  processor.setNonRealtime(true);
+  EXPECT_EQ(processor.writersCreated, 1);
+  ASSERT_NE(processor.lastFakeWriter, nullptr);
+  EXPECT_TRUE(processor.lastFakeWriter->isOpen());
+
+  processor.setNonRealtime(false);
+  processor.setNonRealtime(false);
+  EXPECT_EQ(processor.writersCreated, 1);
+  processor.runPendingTasks();
+  std::filesystem::remove(kOutPath);
+}
+
+// Path and error updates during a host bounce leave the writer open, so the
+// Room WAV holds every bounced frame at the path the bounce started with.
+TEST_F(WavFileOutputHostBounce, room_wav_survives_export_edits) {
+  const std::filesystem::path kOutPath =
+      std::filesystem::current_path() / "wav_bounce_room.wav";
+  const std::filesystem::path kEditedPath =
+      std::filesystem::current_path() / "wav_bounce_room_edited.wav";
+  std::filesystem::remove(kOutPath);
+  std::filesystem::remove(kEditedPath);
+  configureExport(AudioFileFormat::WAV, kOutPath);
+
+  bounceWithExportEdits(kEditedPath);
+
+  EXPECT_EQ(processor.writersCreated, 1);
+  EXPECT_EQ(fileExportRepository.get().getExportError(), ExportError::kNoError);
+  EXPECT_FALSE(std::filesystem::exists(kEditedPath));
+  auto reader = readWav(kOutPath);
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->numChannels, 6u);
+  EXPECT_EQ(reader->lengthInSamples, kBounceBlocks * kBounceBlockSize);
+  reader.reset();
+  std::filesystem::remove(kOutPath);
+}
+
+// A Binaural WAV host bounce also holds every bounced frame despite edits.
+TEST_F(WavFileOutputHostBounce, binaural_wav_survives_export_edits) {
+  const std::filesystem::path kOutPath =
+      std::filesystem::current_path() / "wav_bounce_binaural.wav";
+  const std::filesystem::path kEditedPath =
+      std::filesystem::current_path() / "wav_bounce_binaural_edited.wav";
+  std::filesystem::remove(kOutPath);
+  std::filesystem::remove(kEditedPath);
+  configureExport(AudioFileFormat::BinauralWav, kOutPath);
+
+  bounceWithExportEdits(kEditedPath);
+
+  EXPECT_EQ(processor.writersCreated, 1);
+  EXPECT_FALSE(std::filesystem::exists(kEditedPath));
+  auto reader = readWav(kOutPath);
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->numChannels, 2u);
+  EXPECT_EQ(reader->lengthInSamples, kBounceBlocks * kBounceBlockSize);
+  reader.reset();
+  std::filesystem::remove(kOutPath);
+}
+
+// After the host reports realtime playback, editing the export path while
+// idle creates no file at the old or the new path.
+TEST_F(WavFileOutputHostBounce, idle_path_edits_create_no_file) {
+  const std::filesystem::path kOldPath =
+      std::filesystem::current_path() / "wav_idle_old.wav";
+  const std::filesystem::path kNewPath =
+      std::filesystem::current_path() / "wav_idle_new.wav";
+  std::filesystem::remove(kOldPath);
+  std::filesystem::remove(kNewPath);
+  configureExport(AudioFileFormat::WAV, kOldPath);
+
+  processor.setNonRealtime(false);
+  setExportPath(kNewPath);
+  setExportPath(kOldPath);
+  setExportPath(kNewPath);
+  processor.runPendingTasks();
+
+  EXPECT_EQ(processor.writersCreated, 0);
+  EXPECT_FALSE(std::filesystem::exists(kOldPath));
+  EXPECT_FALSE(std::filesystem::exists(kNewPath));
+  processor.setNonRealtime(false);
+  std::filesystem::remove(kOldPath);
+  std::filesystem::remove(kNewPath);
 }

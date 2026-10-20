@@ -184,8 +184,11 @@ void WavFileOutputProcessor::recordWriteFailureIfAny(bool writeSucceeded) {
 }
 
 void WavFileOutputProcessor::setNonRealtime(bool isNonRealtime) noexcept {
-  lock_.enter();
-  if (!performingRender_) {
+  const juce::SpinLock::ScopedLockType kLock(lock_);
+  if (isNonRealtime == performingRender_) {
+    return;
+  }
+  if (isNonRealtime) {
     // Start Rendering
     FileExport configParams = fileExportRepository_.get();
     RoomSetup roomSetup = roomSetupRepository_.get();
@@ -242,30 +245,20 @@ void WavFileOutputProcessor::setNonRealtime(bool isNonRealtime) noexcept {
     }
     performingRender_ = false;
   }
-  lock_.exit();
 }
 
-void WavFileOutputProcessor::checkManualExportStartStop() {
-  FileExport configParams = fileExportRepository_.get();
-  if (performingRender_ != configParams.getManualExport()) {
-    setNonRealtime(configParams.getManualExport());
+void WavFileOutputProcessor::checkManualExportStartStop(
+    const juce::Identifier& property) {
+  // Only the manual-export flag starts or stops an export, so a host bounce
+  // survives other FileExport edits and an idle processor never opens a file.
+  if (property != FileExport::kManualExport) {
+    return;
   }
+  setNonRealtime(fileExportRepository_.get().getManualExport());
 }
-void WavFileOutputProcessor::valueTreeRedirected(
-    juce::ValueTree& treeWhichHasBeenChanged) {
-  checkManualExportStartStop();
-}
+
 void WavFileOutputProcessor::valueTreePropertyChanged(
     juce::ValueTree& treeWhosePropertyHasChanged,
     const juce::Identifier& property) {
-  checkManualExportStartStop();
-}
-void WavFileOutputProcessor::valueTreeChildAdded(
-    juce::ValueTree& parentTree, juce::ValueTree& childWhichHasBeenAdded) {
-  checkManualExportStartStop();
-}
-void WavFileOutputProcessor::valueTreeChildRemoved(
-    juce::ValueTree& parentTree, juce::ValueTree& childWhichHasBeenRemoved,
-    int indexFromWhichChildWasRemoved) {
-  checkManualExportStartStop();
+  checkManualExportStartStop(property);
 }

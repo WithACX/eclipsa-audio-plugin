@@ -69,15 +69,9 @@ class WavFileOutputProcessor : public ProcessorBase,
   void setNonRealtime(bool isNonRealtime) noexcept override;
 
   //==============================================================================
-  void checkManualExportStartStop();
-  void valueTreeRedirected(juce::ValueTree& treeWhichHasBeenChanged) override;
+  void checkManualExportStartStop(const juce::Identifier& property);
   void valueTreePropertyChanged(juce::ValueTree& treeWhosePropertyHasChanged,
                                 const juce::Identifier& property) override;
-  void valueTreeChildAdded(juce::ValueTree& parentTree,
-                           juce::ValueTree& childWhichHasBeenAdded) override;
-  void valueTreeChildRemoved(juce::ValueTree& parentTree,
-                             juce::ValueTree& childWhichHasBeenRemoved,
-                             int indexFromWhichChildWasRemoved) override;
 
   //==============================================================================
   const juce::String getName() { return "WaveFileOutput"; }
