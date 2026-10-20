@@ -19,6 +19,7 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 
+#include <array>
 #include <atomic>
 #include <functional>
 #include <memory>
@@ -28,6 +29,7 @@
 #include "FileWriter.h"
 #include "data_repository/implementation/RoomSetupRepository.h"
 #include "data_structures/src/RoomSetup.h"
+#include "substream_rdr/substream_rdr_utils/Speakers.h"
 #include "user_metadata.pb.h"
 
 //==============================================================================
@@ -38,6 +40,21 @@
 class WavFileOutputProcessor : public ProcessorBase,
                                public juce::ValueTree::Listener {
  public:
+  static constexpr int kMaxRoomWavChannels = 12;
+
+  // The WAV channel set Room WAV writes for a room layout, and for each of
+  // its channels, in getChannelTypes() order, the rendered (ITU order)
+  // channel it is copied from.
+  struct RoomWavChannelMap {
+    juce::AudioChannelSet channelSet;
+    std::array<int, kMaxRoomWavChannels> sourceChannels{};
+  };
+
+  // Rear surrounds and top-side heights have no WAV channel mask bit, so they
+  // are written as the WAVE back surrounds and top-front heights.
+  static RoomWavChannelMap getRoomWavChannelMap(
+      Speakers::AudioElementSpeakerLayout layout);
+
   //==============================================================================
   WavFileOutputProcessor(FileExportRepository& fileExportRepository,
                          RoomSetupRepository& roomSetupRepository);
@@ -76,10 +93,11 @@ class WavFileOutputProcessor : public ProcessorBase,
   }
 
   virtual FileWriter* createFileWriter(const juce::String& filename,
-                                       double sampleRate, int numChannels,
+                                       double sampleRate,
+                                       const juce::AudioChannelSet& channelSet,
                                        int firstChannel, int bitDepth,
                                        AudioCodec codec) {
-    return new FileWriter(filename, sampleRate, numChannels, firstChannel,
+    return new FileWriter(filename, sampleRate, channelSet, firstChannel,
                           bitDepth, codec);
   }
 
@@ -87,6 +105,10 @@ class WavFileOutputProcessor : public ProcessorBase,
   // Records a kFileWriteFailed ExportError (unless a more specific error is
   // already on record) when a FileWriter::write() call fails.
   void recordWriteFailureIfAny(bool writeSucceeded);
+
+  // Copies the rendered channels into exportBuffer_ in Room WAV order and
+  // writes them. Returns false if the write fails.
+  bool writeRoomWav(const juce::AudioBuffer<float>& buffer);
 
   // Defers a FileExport mutation to the next message-loop turn (via
   // postToMessageThread), running `mutator` against a config fetched fresh
@@ -119,6 +141,8 @@ class WavFileOutputProcessor : public ProcessorBase,
   FileExportRepository& fileExportRepository_;
   RoomSetupRepository& roomSetupRepository_;
   FileWriter* fileWriter_;
+  RoomWavChannelMap roomWavChannelMap_;
+  juce::AudioBuffer<float> exportBuffer_;
   int numSamples_;
   double sampleRate_;
   juce::int64 startSampleIdx_;
