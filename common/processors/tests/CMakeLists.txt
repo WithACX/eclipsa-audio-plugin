@@ -27,6 +27,7 @@ eclipsa_add_test(test_remapping_processor RemappingProcessor_test.cpp "processor
 eclipsa_add_test(test_audioelementplugin_routing AudioElementPluginRouting_test.cpp "processors;juce::juce_audio_utils")
 eclipsa_add_test(test_loudness_proc LoudnessExportProcessor_test.cpp "processors")
 eclipsa_add_test(test_ebu128_loudness MeasureEBU128_test.cpp "processors;lufs_meter")
+eclipsa_add_test(test_mix_monitor_export_profile MixMonitorExportProfile_test.cpp "processors")
 eclipsa_add_test(test_iamf_writer IAMFFileWriter_test.cpp "processors;iamf")
 eclipsa_add_test(test_iamf_reader IAMFFileReader_test.cpp "processors;iamf")
 eclipsa_add_test(test_fileplayback_worker FilePlaybackWorker_test.cpp "processors;iamf")
