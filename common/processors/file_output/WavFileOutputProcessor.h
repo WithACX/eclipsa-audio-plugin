@@ -107,6 +107,11 @@ class WavFileOutputProcessor : public ProcessorBase,
   // already on record) when a FileWriter::write() call fails.
   void recordWriteFailureIfAny(bool writeSucceeded);
 
+  // True when the playhead position at the start of this block lies inside
+  // the export's start and end sample indices, or when the host reports no
+  // time position.
+  bool isBlockInExportRange();
+
   // Copies the export's source channels (the room render in `buffer`, or the
   // binaural mix) into exportBuffer_ in WAV order and writes them. Returns
   // false if the write fails.

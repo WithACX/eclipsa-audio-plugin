@@ -753,3 +753,130 @@ TEST_F(WavFileOutputBinaural, writes_two_channels_for_any_room) {
     std::filesystem::remove(kOutPath);
   }
 }
+
+namespace {
+constexpr int kRangeBlockSize = 64;
+constexpr double kRangeSampleRate = 48000.0;
+
+// Reports a playhead whose time position the test sets per block, or no
+// position, or a position without a time.
+class FakePlayHead : public juce::AudioPlayHead {
+ public:
+  juce::Optional<PositionInfo> getPosition() const override {
+    if (!reportsPosition) {
+      return {};
+    }
+    PositionInfo info;
+    if (reportsTime) {
+      info.setTimeInSeconds(static_cast<double>(currentSample) /
+                            kRangeSampleRate);
+    }
+    return info;
+  }
+
+  juce::int64 currentSample = 0;
+  bool reportsPosition = true;
+  bool reportsTime = true;
+};
+
+class WavFileOutputRange : public WavFileOutputTests {
+ protected:
+  void SetUp() override {
+    setRoomLayout(roomSetupRepository, Speakers::kStereo);
+    processor.setPlayHead(&playHead);
+  }
+
+  // Runs a Room WAV export of `numBlocks` blocks with the playhead advancing
+  // from sample 0, and returns the written file's length in frames.
+  juce::int64 exportBlocks(const std::filesystem::path& outPath,
+                           juce::int64 startSampleIdx, juce::int64 endSampleIdx,
+                           int numBlocks) {
+    std::filesystem::remove(outPath);
+    FileExport config = fileExportRepository.get();
+    config.setAudioFileFormat(AudioFileFormat::WAV);
+    config.setExportAudio(true);
+    config.setSampleRate(static_cast<int>(kRangeSampleRate));
+    config.setBitDepth(16);
+    config.setAudioCodec(AudioCodec::LPCM);
+    config.setExportFile(outPath.string());
+    config.setStartSampleIdx(startSampleIdx);
+    config.setEndSampleIdx(endSampleIdx);
+    config.setManualExport(false);
+    fileExportRepository.update(config);
+    processor.prepareToPlay(kRangeSampleRate, kRangeBlockSize);
+
+    config.setManualExport(true);
+    fileExportRepository.update(config);
+    processor.runPendingTasks();
+
+    juce::AudioBuffer<float> buffer(2, kRangeBlockSize);
+    buffer.clear();
+    juce::MidiBuffer midi;
+    for (int block = 0; block < numBlocks; ++block) {
+      playHead.currentSample =
+          static_cast<juce::int64>(block) * kRangeBlockSize;
+      processor.processBlock(buffer, midi);
+    }
+
+    config = fileExportRepository.get();
+    config.setManualExport(false);
+    fileExportRepository.update(config);
+    processor.runPendingTasks();
+    EXPECT_EQ(fileExportRepository.get().getExportError(),
+              ExportError::kNoError);
+
+    auto reader = readWav(outPath);
+    const juce::int64 kLength =
+        reader == nullptr ? -1 : reader->lengthInSamples;
+    reader.reset();
+    std::filesystem::remove(outPath);
+    return kLength;
+  }
+
+  FakePlayHead playHead;
+};
+}  // namespace
+
+// With a start and an end set, only the blocks that start inside the range
+// reach the file.
+TEST_F(WavFileOutputRange, writes_only_blocks_inside_start_and_end) {
+  const juce::int64 kLength =
+      exportBlocks(std::filesystem::current_path() / "wav_range_start_end.wav",
+                   2 * kRangeBlockSize, 6 * kRangeBlockSize, 10);
+  EXPECT_EQ(kLength, 4 * kRangeBlockSize);
+}
+
+// With a nonzero start and no end, the export writes the frames from the
+// start onward rather than nothing.
+TEST_F(WavFileOutputRange, writes_from_nonzero_start_without_end) {
+  const juce::int64 kLength =
+      exportBlocks(std::filesystem::current_path() / "wav_range_start.wav",
+                   3 * kRangeBlockSize, 0, 10);
+  EXPECT_EQ(kLength, 7 * kRangeBlockSize);
+}
+
+// With a zero start and an end set, blocks at or past the end are dropped.
+TEST_F(WavFileOutputRange, stops_writing_at_end_with_zero_start) {
+  const juce::int64 kLength =
+      exportBlocks(std::filesystem::current_path() / "wav_range_end.wav", 0,
+                   5 * kRangeBlockSize, 10);
+  EXPECT_EQ(kLength, 5 * kRangeBlockSize);
+}
+
+// A playhead that reports no position writes every block.
+TEST_F(WavFileOutputRange, writes_every_block_without_position) {
+  playHead.reportsPosition = false;
+  const juce::int64 kLength =
+      exportBlocks(std::filesystem::current_path() / "wav_range_no_pos.wav",
+                   2 * kRangeBlockSize, 6 * kRangeBlockSize, 10);
+  EXPECT_EQ(kLength, 10 * kRangeBlockSize);
+}
+
+// A playhead position without a time writes every block.
+TEST_F(WavFileOutputRange, writes_every_block_without_time_position) {
+  playHead.reportsTime = false;
+  const juce::int64 kLength =
+      exportBlocks(std::filesystem::current_path() / "wav_range_no_time.wav",
+                   2 * kRangeBlockSize, 6 * kRangeBlockSize, 10);
+  EXPECT_EQ(kLength, 10 * kRangeBlockSize);
+}

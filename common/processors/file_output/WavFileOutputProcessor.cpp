@@ -108,6 +108,7 @@ void WavFileOutputProcessor::prepareToPlay(double sampleRate,
     fileExportRepository_.update(configParams);
   }
 
+  sampleRate_ = sampleRate;
   numSamples_ = samplesPerBlock;
   exportBuffer_.setSize(kMaxRoomWavChannels, samplesPerBlock);
 }
@@ -142,24 +143,37 @@ void WavFileOutputProcessor::processBlock(juce::AudioBuffer<float>& buffer,
 
   bool writeFailed = false;
   if (performingRender_ && fileWriter_ != nullptr) {
-    // If the current position is between the configured start and end position,
-    // write to the file. Else do nothing
-    auto playHead = getPlayHead();
-    if (playHead != NULL) {  // Happens in debug
-      auto position = getPlayHead()->getPosition();
-      const juce::int64 currentSample =
-          static_cast<juce::int64>(*position->getTimeInSeconds() * sampleRate_);
-      if ((endSampleIdx_ == 0) || (currentSample >= startSampleIdx_ &&
-                                   currentSample <= endSampleIdx_)) {
-        writeFailed = !writeExportBlock(buffer);
-      }
-    } else {
+    if (isBlockInExportRange()) {
       writeFailed = !writeExportBlock(buffer);
     }
   }
   lock_.exit();
 
   recordWriteFailureIfAny(!writeFailed);
+}
+
+bool WavFileOutputProcessor::isBlockInExportRange() {
+  juce::AudioPlayHead* playHead = getPlayHead();
+  if (playHead == nullptr) {
+    return true;
+  }
+  const juce::Optional<juce::AudioPlayHead::PositionInfo> kPosition =
+      playHead->getPosition();
+  if (!kPosition.hasValue() || !kPosition->getTimeInSeconds().hasValue()) {
+    return true;
+  }
+  const juce::int64 kCurrentSample =
+      static_cast<juce::int64>(*kPosition->getTimeInSeconds() * sampleRate_);
+  // Same bounds as FileOutputProcessor::shouldBufferBeWritten: a block is
+  // written when it starts at or after the start and before the end, and a
+  // bound of 0 is unset.
+  if (startSampleIdx_ > 0 && kCurrentSample < startSampleIdx_) {
+    return false;
+  }
+  if (endSampleIdx_ > 0 && kCurrentSample >= endSampleIdx_) {
+    return false;
+  }
+  return true;
 }
 
 void WavFileOutputProcessor::recordWriteFailureIfAny(bool writeSucceeded) {
@@ -191,6 +205,7 @@ void WavFileOutputProcessor::setNonRealtime(bool isNonRealtime) noexcept {
     RoomSetup roomSetup = roomSetupRepository_.get();
     startSampleIdx_ = configParams.getStartSampleIdx();
     endSampleIdx_ = configParams.getEndSampleIdx();
+    sampleRate_ = configParams.getSampleRate();
     const AudioFileFormat kFormat = configParams.getAudioFileFormat();
     if ((kFormat == AudioFileFormat::WAV ||
          kFormat == AudioFileFormat::BinauralWav) &&
