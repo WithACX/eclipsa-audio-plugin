@@ -57,6 +57,46 @@ void WavFileOutputProcessor::deferRepositoryUpdate(
   });
 }
 
+WavFileOutputProcessor::RoomWavChannelMap
+WavFileOutputProcessor::getRoomWavChannelMap(
+    Speakers::AudioElementSpeakerLayout layout) {
+  using ChannelType = juce::AudioChannelSet::ChannelType;
+  const juce::Array<ChannelType> kItuOrder = layout.getITUChannelOrdering();
+  RoomWavChannelMap map;
+  // Binaural, the one room layout without an ITU order, renders to stereo.
+  if (kItuOrder.isEmpty()) {
+    map.channelSet = layout.getChannelSet();
+    for (int i = 0; i < map.channelSet.size(); ++i) {
+      map.sourceChannels[i] = i;
+    }
+    return map;
+  }
+
+  const auto toWavChannel = [](ChannelType type) {
+    switch (type) {
+      case ChannelType::leftSurroundRear:
+        return ChannelType::leftSurround;
+      case ChannelType::rightSurroundRear:
+        return ChannelType::rightSurround;
+      case ChannelType::topSideLeft:
+        return ChannelType::topFrontLeft;
+      case ChannelType::topSideRight:
+        return ChannelType::topFrontRight;
+      default:
+        return type;
+    }
+  };
+  for (const ChannelType kType : kItuOrder) {
+    map.channelSet.addChannel(toWavChannel(kType));
+  }
+  for (int ituIdx = 0; ituIdx < kItuOrder.size(); ++ituIdx) {
+    const int kWavIdx =
+        map.channelSet.getChannelIndexForType(toWavChannel(kItuOrder[ituIdx]));
+    map.sourceChannels[kWavIdx] = ituIdx;
+  }
+  return map;
+}
+
 //==============================================================================
 void WavFileOutputProcessor::prepareToPlay(double sampleRate,
                                            int samplesPerBlock) {
@@ -67,6 +107,24 @@ void WavFileOutputProcessor::prepareToPlay(double sampleRate,
   }
 
   numSamples_ = samplesPerBlock;
+  exportBuffer_.setSize(kMaxRoomWavChannels, samplesPerBlock);
+}
+
+bool WavFileOutputProcessor::writeRoomWav(
+    const juce::AudioBuffer<float>& buffer) {
+  const int kNumChannels = roomWavChannelMap_.channelSet.size();
+  if (buffer.getNumChannels() < kNumChannels) {
+    jassertfalse;
+    return false;
+  }
+  // Reallocates only if the host exceeds the block size it prepared with.
+  exportBuffer_.setSize(kNumChannels, buffer.getNumSamples(), false, false,
+                        true);
+  for (int ch = 0; ch < kNumChannels; ++ch) {
+    exportBuffer_.copyFrom(ch, 0, buffer, roomWavChannelMap_.sourceChannels[ch],
+                           0, buffer.getNumSamples());
+  }
+  return fileWriter_->write(exportBuffer_);
 }
 
 void WavFileOutputProcessor::processBlock(juce::AudioBuffer<float>& buffer,
@@ -88,10 +146,10 @@ void WavFileOutputProcessor::processBlock(juce::AudioBuffer<float>& buffer,
           static_cast<juce::int64>(*position->getTimeInSeconds() * sampleRate_);
       if ((endSampleIdx_ == 0) || (currentSample >= startSampleIdx_ &&
                                    currentSample <= endSampleIdx_)) {
-        writeFailed = !fileWriter_->write(buffer);
+        writeFailed = !writeRoomWav(buffer);
       }
     } else {
-      writeFailed = !fileWriter_->write(buffer);
+      writeFailed = !writeRoomWav(buffer);
     }
   }
   lock_.exit();
@@ -138,10 +196,12 @@ void WavFileOutputProcessor::setNonRealtime(bool isNonRealtime) noexcept {
           [](FileExport& config) { config.setExportError(kNoError); });
       hasRecordedWriteFailure_ = false;
 
+      roomWavChannelMap_ = getRoomWavChannelMap(
+          roomSetup.getSpeakerLayout().getRoomSpeakerLayout());
       fileWriter_ = createFileWriter(
           configParams.getExportFile(), configParams.getSampleRate(),
-          roomSetup.getSpeakerLayout().getRoomSpeakerLayout().getNumChannels(),
-          0, configParams.getBitDepth(), configParams.getAudioCodec());
+          roomWavChannelMap_.channelSet, 0, configParams.getBitDepth(),
+          configParams.getAudioCodec());
       if (!fileWriter_->isOpen()) {
         const std::string kFailedFilePath = fileWriter_->getFilePath();
         LOG_ERROR(0,

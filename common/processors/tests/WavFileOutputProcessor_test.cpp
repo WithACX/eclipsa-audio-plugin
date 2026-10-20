@@ -99,9 +99,10 @@ class TestableWavFileOutputProcessor : public WavFileOutputProcessor {
   }
 
   FileWriter* createFileWriter(const juce::String& filename, double sampleRate,
-                               int numChannels, int firstChannel, int bitDepth,
+                               const juce::AudioChannelSet& channelSet,
+                               int firstChannel, int bitDepth,
                                AudioCodec codec) override {
-    auto* fake = new FakeFileWriter(filename, sampleRate, numChannels,
+    auto* fake = new FakeFileWriter(filename, sampleRate, channelSet,
                                     firstChannel, bitDepth, codec);
     fake->forceWriteFailure = forceWriteFailure;
     fake->forceCloseFailure = forceCloseFailure;
@@ -341,5 +342,199 @@ TEST_F(WavFileOutputTests, close_failure_after_successful_open_is_recorded) {
 
   EXPECT_EQ(fileExportRepository.get().getExportError(),
             ExportError::kFileWriteFailed);
+  std::filesystem::remove(kOutPath);
+}
+
+namespace {
+using ChannelType = juce::AudioChannelSet::ChannelType;
+
+// Fills rendered channel i with this value, so each written channel shows
+// which rendered channel it came from.
+float ituMarker(int ituIndex) { return (ituIndex + 1) / 32.f; }
+
+std::unique_ptr<juce::AudioFormatReader> readWav(
+    const std::filesystem::path& path) {
+  return std::unique_ptr<juce::AudioFormatReader>(
+      juce::WavAudioFormat().createReaderFor(
+          new juce::FileInputStream(juce::File(path.string())), true));
+}
+
+struct RoomWavCase {
+  Speakers::AudioElementSpeakerLayout layout;
+  std::vector<ChannelType> expectedSet;
+  // Rendered (ITU order) channel expected in each written channel.
+  std::vector<int> expectedSources;
+};
+
+// Keeps the test names ctest registers free of the parameter's raw bytes.
+void PrintTo(const RoomWavCase& roomWavCase, std::ostream* os) {
+  *os << roomWavCase.layout.toString();
+}
+
+const ChannelType L = ChannelType::left, R = ChannelType::right,
+                  C = ChannelType::centre, LFE = ChannelType::LFE,
+                  Ls = ChannelType::leftSurround,
+                  Rs = ChannelType::rightSurround,
+                  Lss = ChannelType::leftSurroundSide,
+                  Rss = ChannelType::rightSurroundSide,
+                  Ltf = ChannelType::topFrontLeft,
+                  Rtf = ChannelType::topFrontRight,
+                  Ltr = ChannelType::topRearLeft,
+                  Rtr = ChannelType::topRearRight;
+
+juce::AudioChannelSet makeSet(const std::vector<ChannelType>& types) {
+  juce::AudioChannelSet set;
+  for (const ChannelType kType : types) set.addChannel(kType);
+  return set;
+}
+
+class WavFileOutputRoomOrder
+    : public WavFileOutputTests,
+      public ::testing::WithParamInterface<RoomWavCase> {};
+}  // namespace
+
+// Room WAV writes each room layout's rendered ITU channels in the export set's
+// getChannelTypes() order, with that set as the file's channel mask.
+TEST_P(WavFileOutputRoomOrder, writes_channels_in_export_set_order) {
+  const RoomWavCase& kCase = GetParam();
+  const std::filesystem::path kOutPath =
+      std::filesystem::current_path() /
+      ("wav_room_order_" + kCase.layout.toString().toStdString() + ".wav");
+  std::filesystem::remove(kOutPath);
+
+  RoomSetup roomSetup = roomSetupRepository.get();
+  for (const RoomLayout& kOption : speakerLayoutConfigurationOptions) {
+    if (kOption.getRoomSpeakerLayout() == kCase.layout) {
+      roomSetup.setSpeakerLayout(kOption);
+    }
+  }
+  roomSetupRepository.update(roomSetup);
+  ASSERT_EQ(roomSetupRepository.get().getSpeakerLayout().getRoomSpeakerLayout(),
+            kCase.layout);
+
+  FileExport config = fileExportRepository.get();
+  config.setAudioFileFormat(AudioFileFormat::WAV);
+  config.setExportAudio(true);
+  config.setSampleRate(48000);
+  config.setBitDepth(24);
+  config.setAudioCodec(AudioCodec::LPCM);
+  config.setExportFile(kOutPath.string());
+  config.setManualExport(false);
+  fileExportRepository.update(config);
+  processor.prepareToPlay(48000, 64);
+
+  config.setManualExport(true);
+  fileExportRepository.update(config);
+  processor.runPendingTasks();
+
+  const int kNumChannels = static_cast<int>(kCase.expectedSources.size());
+  juce::AudioBuffer<float> buffer(kNumChannels, 64);
+  for (int ch = 0; ch < kNumChannels; ++ch) {
+    juce::FloatVectorOperations::fill(buffer.getWritePointer(ch), ituMarker(ch),
+                                      buffer.getNumSamples());
+  }
+  juce::MidiBuffer midi;
+  processor.processBlock(buffer, midi);
+
+  config = fileExportRepository.get();
+  config.setManualExport(false);
+  fileExportRepository.update(config);
+  processor.runPendingTasks();
+  EXPECT_EQ(fileExportRepository.get().getExportError(), ExportError::kNoError);
+
+  auto reader = readWav(kOutPath);
+  ASSERT_NE(reader, nullptr);
+  ASSERT_EQ(static_cast<int>(reader->numChannels), kNumChannels);
+  EXPECT_EQ(reader->getChannelLayout(), makeSet(kCase.expectedSet));
+  juce::AudioBuffer<float> readBack(kNumChannels, 64);
+  reader->read(&readBack, 0, 64, 0, true, true);
+  for (int ch = 0; ch < kNumChannels; ++ch) {
+    EXPECT_NEAR(readBack.getSample(ch, 10),
+                ituMarker(kCase.expectedSources[ch]), 1e-4f)
+        << "written channel " << ch;
+  }
+  reader.reset();
+  std::filesystem::remove(kOutPath);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    RoomLayouts, WavFileOutputRoomOrder,
+    ::testing::Values(
+        RoomWavCase{Speakers::kStereo, {L, R}, {0, 1}},
+        RoomWavCase{Speakers::k3Point1Point2,
+                    {L, R, C, LFE, Ltf, Rtf},
+                    {0, 1, 2, 3, 4, 5}},
+        RoomWavCase{
+            Speakers::k5Point1, {L, R, C, LFE, Ls, Rs}, {0, 1, 2, 3, 4, 5}},
+        RoomWavCase{Speakers::k5Point1Point2,
+                    {L, R, C, LFE, Ls, Rs, Ltf, Rtf},
+                    {0, 1, 2, 3, 4, 5, 6, 7}},
+        RoomWavCase{Speakers::k5Point1Point4,
+                    {L, R, C, LFE, Ls, Rs, Ltf, Rtf, Ltr, Rtr},
+                    {0, 1, 2, 3, 4, 5, 6, 7, 8, 9}},
+        RoomWavCase{Speakers::k7Point1,
+                    {L, R, C, LFE, Ls, Rs, Lss, Rss},
+                    {0, 1, 2, 3, 6, 7, 4, 5}},
+        RoomWavCase{Speakers::k7Point1Point2,
+                    {L, R, C, LFE, Ls, Rs, Lss, Rss, Ltf, Rtf},
+                    {0, 1, 2, 3, 6, 7, 4, 5, 8, 9}},
+        RoomWavCase{Speakers::k7Point1Point4,
+                    {L, R, C, LFE, Ls, Rs, Lss, Rss, Ltf, Rtf, Ltr, Rtr},
+                    {0, 1, 2, 3, 6, 7, 4, 5, 8, 9, 10, 11}}),
+    [](const ::testing::TestParamInfo<RoomWavCase>& info) {
+      return info.param.layout.toString()
+          .replaceCharacter('.', 'p')
+          .retainCharacters(
+              "0123456789abcdefghijklmnopqrstuvwxyz"
+              "ABCDEFGHIJKLMNOPQRSTUVWXYZp")
+          .toStdString();
+    });
+
+// FileWriter writes the WAVE-mapped 5.1.2, 7.1, 7.1.2 and 7.1.4 sets, and a
+// reader recovers each set from the file's channel mask.
+TEST(WavFileOutputFileWriter, wave_mapped_sets_read_back_from_channel_mask) {
+  const std::vector<std::vector<ChannelType>> kSets = {
+      {L, R, C, LFE, Ls, Rs, Ltf, Rtf},
+      {L, R, C, LFE, Ls, Rs, Lss, Rss},
+      {L, R, C, LFE, Ls, Rs, Lss, Rss, Ltf, Rtf},
+      {L, R, C, LFE, Ls, Rs, Lss, Rss, Ltf, Rtf, Ltr, Rtr}};
+  for (const auto& kTypes : kSets) {
+    const juce::AudioChannelSet kSet = makeSet(kTypes);
+    const std::filesystem::path kOutPath =
+        std::filesystem::current_path() /
+        ("wav_mask_" + std::to_string(kSet.size()) + ".wav");
+    std::filesystem::remove(kOutPath);
+    {
+      FileWriter writer(kOutPath.string(), 48000, kSet, 0, 24,
+                        AudioCodec::LPCM);
+      ASSERT_TRUE(writer.isOpen()) << kSet.getDescription();
+      juce::AudioBuffer<float> buffer(kSet.size(), 64);
+      buffer.clear();
+      EXPECT_TRUE(writer.write(buffer));
+      EXPECT_TRUE(writer.close());
+    }
+    auto reader = readWav(kOutPath);
+    ASSERT_NE(reader, nullptr);
+    EXPECT_EQ(reader->getChannelLayout(), kSet) << kSet.getDescription();
+    reader.reset();
+    std::filesystem::remove(kOutPath);
+  }
+}
+
+// FileWriter::write refuses a buffer with fewer channels than
+// firstChannel + numChannels instead of reading past it.
+TEST(WavFileOutputFileWriter,
+     write_rejects_buffer_narrower_than_channel_range) {
+  const std::filesystem::path kOutPath =
+      std::filesystem::current_path() / "wav_narrow_buffer.wav";
+  std::filesystem::remove(kOutPath);
+  FileWriter writer(kOutPath.string(), 48000, juce::AudioChannelSet::stereo(),
+                    1, 24, AudioCodec::LPCM);
+  ASSERT_TRUE(writer.isOpen());
+  juce::AudioBuffer<float> buffer(2, 64);
+  buffer.clear();
+  EXPECT_FALSE(writer.write(buffer));
+  EXPECT_EQ(writer.getFramesWritten(), 0);
+  writer.close();
   std::filesystem::remove(kOutPath);
 }
