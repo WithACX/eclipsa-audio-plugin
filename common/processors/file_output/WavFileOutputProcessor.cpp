@@ -31,7 +31,6 @@ WavFileOutputProcessor::WavFileOutputProcessor(
       roomSetupRepository_(roomSetupRepository),
       binauralMixSource_(binauralMixSource),
       numSamples_(0),
-      sampleRate_(0),
       performingRender_(false),
       fileWriter_(nullptr) {
   fileExportRepository_.registerListener(this);
@@ -141,25 +140,30 @@ void WavFileOutputProcessor::processBlock(juce::AudioBuffer<float>& buffer,
   }
 
   bool writeFailed = false;
-  if (performingRender_ && fileWriter_ != nullptr) {
-    // If the current position is between the configured start and end position,
-    // write to the file. Else do nothing
-    auto playHead = getPlayHead();
-    if (playHead != NULL) {  // Happens in debug
-      auto position = getPlayHead()->getPosition();
-      const juce::int64 currentSample =
-          static_cast<juce::int64>(*position->getTimeInSeconds() * sampleRate_);
-      if ((endSampleIdx_ == 0) || (currentSample >= startSampleIdx_ &&
-                                   currentSample <= endSampleIdx_)) {
-        writeFailed = !writeExportBlock(buffer);
-      }
-    } else {
+  if (performingRender_) {
+    const bool kInRange = isBlockInExportRange(buffer.getNumSamples());
+    if (kInRange && fileWriter_ != nullptr) {
       writeFailed = !writeExportBlock(buffer);
     }
   }
   lock_.exit();
 
   recordWriteFailureIfAny(!writeFailed);
+}
+
+bool WavFileOutputProcessor::isBlockInExportRange(int numSamples) {
+  const juce::int64 kCurrentSample = sampleTally_;
+  sampleTally_ += numSamples;
+  // Same bounds as FileOutputProcessor::shouldBufferBeWritten: a block is
+  // written when it starts at or after the start and before the end, and a
+  // bound of 0 is unset.
+  if (startSampleIdx_ > 0 && kCurrentSample < startSampleIdx_) {
+    return false;
+  }
+  if (endSampleIdx_ > 0 && kCurrentSample >= endSampleIdx_) {
+    return false;
+  }
+  return true;
 }
 
 void WavFileOutputProcessor::recordWriteFailureIfAny(bool writeSucceeded) {
@@ -194,6 +198,7 @@ void WavFileOutputProcessor::setNonRealtime(bool isNonRealtime) noexcept {
     RoomSetup roomSetup = roomSetupRepository_.get();
     startSampleIdx_ = configParams.getStartSampleIdx();
     endSampleIdx_ = configParams.getEndSampleIdx();
+    sampleTally_ = 0;
     const AudioFileFormat kFormat = configParams.getAudioFileFormat();
     if ((kFormat == AudioFileFormat::WAV ||
          kFormat == AudioFileFormat::BinauralWav) &&

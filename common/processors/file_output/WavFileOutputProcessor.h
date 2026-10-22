@@ -101,6 +101,11 @@ class WavFileOutputProcessor : public ProcessorBase,
   // already on record) when a FileWriter::write() call fails.
   void recordWriteFailureIfAny(bool writeSucceeded);
 
+  // Advances the export's sample tally past a block of `numSamples` and
+  // returns true when the block starts inside the export's start and end
+  // sample indices.
+  bool isBlockInExportRange(int numSamples);
+
   // Copies the export's source channels (the room render in `buffer`, or the
   // binaural mix) into exportBuffer_ in WAV order and writes them. Returns
   // false if the write fails.
@@ -142,7 +147,7 @@ class WavFileOutputProcessor : public ProcessorBase,
   WavChannelMap exportChannelMap_;
   juce::AudioBuffer<float> exportBuffer_;
   int numSamples_;
-  double sampleRate_;
+  juce::int64 sampleTally_ = 0;  // Samples rendered since the export started
   juce::int64 startSampleIdx_;
   juce::int64 endSampleIdx_;
   juce::SpinLock lock_;
