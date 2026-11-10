@@ -18,13 +18,26 @@
 
 #include "../src/RendererProcessor.h"
 
-// Under YouTube, a mix presentation can be added only when none exist.
-TEST(EditPresentationScreen, youtube_allows_only_first_mix) {
-  EXPECT_TRUE(EditPresentationScreen::canAddMixPresentation(
-      ExportProfile::kYouTube, 0));
+// Under YouTube - Simple, a mix presentation can be added only when none
+// exist.
+TEST(EditPresentationScreen, youtube_simple_allows_one_mix) {
+  constexpr ExportProfile kSimple = ExportProfile::kYouTubeSimple;
+  EXPECT_TRUE(EditPresentationScreen::canAddMixPresentation(kSimple, 0));
   for (const int numMixes : {1, 2, 5}) {
-    EXPECT_FALSE(EditPresentationScreen::canAddMixPresentation(
-        ExportProfile::kYouTube, numMixes));
+    EXPECT_FALSE(
+        EditPresentationScreen::canAddMixPresentation(kSimple, numMixes));
+  }
+}
+
+// Under YouTube - Base, a mix presentation can be added while fewer than two
+// exist.
+TEST(EditPresentationScreen, youtube_base_allows_two_mixes) {
+  constexpr ExportProfile kBase = ExportProfile::kYouTubeBase;
+  EXPECT_TRUE(EditPresentationScreen::canAddMixPresentation(kBase, 0));
+  EXPECT_TRUE(EditPresentationScreen::canAddMixPresentation(kBase, 1));
+  for (const int numMixes : {2, 3, 5}) {
+    EXPECT_FALSE(
+        EditPresentationScreen::canAddMixPresentation(kBase, numMixes));
   }
 }
 

@@ -16,15 +16,48 @@
 
 juce::String exportProfileToString(const ExportProfile profile) {
   switch (profile) {
-    case ExportProfile::kYouTube:
-      return "YouTube";
+    case ExportProfile::kYouTubeSimple:
+      return "YouTube - Simple";
+    case ExportProfile::kYouTubeBase:
+      return "YouTube - Base";
     case ExportProfile::kAdvanced:
       return "Advanced";
   }
   return "Advanced";
 }
 
+bool isYouTubeProfile(const ExportProfile profile) {
+  return requiredFileProfile(profile).has_value();
+}
+
+std::optional<FileProfile> requiredFileProfile(const ExportProfile profile) {
+  switch (profile) {
+    case ExportProfile::kYouTubeSimple:
+      return FileProfile::SIMPLE;
+    case ExportProfile::kYouTubeBase:
+      return FileProfile::BASE;
+    case ExportProfile::kAdvanced:
+      return std::nullopt;
+  }
+  return std::nullopt;
+}
+
+std::optional<int> youTubeMixPresentationLimit(const ExportProfile profile) {
+  switch (profile) {
+    case ExportProfile::kYouTubeSimple:
+      return 1;
+    case ExportProfile::kYouTubeBase:
+      return 2;
+    case ExportProfile::kAdvanced:
+      return std::nullopt;
+  }
+  return std::nullopt;
+}
+
 ExportProfile exportProfileFromString(const juce::String& str) {
+  if (str == "YouTube") {
+    return ExportProfile::kYouTubeBase;
+  }
   for (const ExportProfile profile : kExportProfileOptions) {
     if (exportProfileToString(profile) == str) {
       return profile;

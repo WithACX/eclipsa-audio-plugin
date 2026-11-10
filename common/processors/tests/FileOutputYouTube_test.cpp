@@ -57,7 +57,7 @@ class FileOutputYouTube : public FileOutputTests {
     const juce::Uuid kMP = addMixPresentation();
     addAudioElementsToMix(kMP, {kAE});
     setTestExportOpts({.codec = AudioCodec::LPCM});
-    setExportProfile(ExportProfile::kYouTube);
+    setExportProfile(ExportProfile::kYouTubeBase);
   }
 
   std::unique_ptr<TestableFileOutputProcessor> makeProcessor(
@@ -114,6 +114,17 @@ TEST_F(FileOutputYouTube, range_over_cap_stops_before_render) {
   EXPECT_FALSE(std::filesystem::exists(elementWavPath()));
   EXPECT_FALSE(proc->isRendering());
   EXPECT_FALSE(proc->hasSecurityScopedAccess());
+}
+
+// YouTube - Simple applies the same 12-hour stop as YouTube - Base.
+TEST_F(FileOutputYouTube, youtube_simple_range_over_cap_stops) {
+  setExportProfile(ExportProfile::kYouTubeSimple);
+  auto proc = makeProcessor();
+  setRange(0, kOverCapEnd);
+  bounce(*proc);
+
+  EXPECT_EQ(exportError(), kYouTubeDurationExceeded);
+  EXPECT_FALSE(std::filesystem::exists(iamfOutPath));
 }
 
 // An estimated output over the size limit stops the export the same way.

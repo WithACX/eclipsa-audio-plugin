@@ -50,7 +50,7 @@ class LoudnessWarningBanner : public WarningBannerBase, private juce::Timer {
   static constexpr double kThresholdLufs = -14.0;
 
   static bool shouldWarn(ExportProfile profile, float integrated, bool reset) {
-    if (profile != ExportProfile::kYouTube || reset ||
+    if (!isYouTubeProfile(profile) || reset ||
         !LoudnessStats::isValidLoudness(integrated)) {
       return false;
     }

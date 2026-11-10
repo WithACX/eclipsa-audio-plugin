@@ -23,7 +23,7 @@
 #include <limits>
 
 namespace {
-constexpr ExportProfile kYt = ExportProfile::kYouTube;
+constexpr ExportProfile kYt = ExportProfile::kYouTubeBase;
 constexpr ExportProfile kAdv = ExportProfile::kAdvanced;
 }  // namespace
 
@@ -43,6 +43,13 @@ TEST(LoudnessWarning, youtube_invalid_or_reset) {
   EXPECT_FALSE(LoudnessWarningBanner::shouldWarn(
       kYt, std::numeric_limits<float>::infinity(), false));
   EXPECT_FALSE(LoudnessWarningBanner::shouldWarn(kYt, -10.0f, true));
+}
+
+// YouTube - Simple warns at the same threshold as YouTube - Base.
+TEST(LoudnessWarning, youtube_simple_threshold) {
+  constexpr ExportProfile kSimple = ExportProfile::kYouTubeSimple;
+  EXPECT_TRUE(LoudnessWarningBanner::shouldWarn(kSimple, -13.9f, false));
+  EXPECT_FALSE(LoudnessWarningBanner::shouldWarn(kSimple, -14.0f, false));
 }
 
 // Under Advanced the banner never warns, however loud the audio is.

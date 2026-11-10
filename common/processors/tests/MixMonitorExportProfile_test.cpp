@@ -48,7 +48,7 @@ class MixMonitorExportProfileTest : public ::testing::Test {
 TEST_F(MixMonitorExportProfileTest, profile_change_keeps_stats) {
   seedStats();
   RoomSetup setup = repo_.get();
-  ASSERT_EQ(setup.getExportProfile(), ExportProfile::kYouTube);
+  ASSERT_EQ(setup.getExportProfile(), ExportProfile::kYouTubeBase);
   setup.setExportProfile(ExportProfile::kAdvanced);
   repo_.update(setup);
 
