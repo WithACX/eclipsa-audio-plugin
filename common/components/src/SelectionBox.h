@@ -264,9 +264,10 @@ class SelectionBox : public juce::Component {
   int getSelectedIndex() { return selectionBox_.getSelectedItemIndex(); }
 
   // Width at which the longest option draws without truncation, at the
-  // current height. drawComboBox leaves 30 px for the text inset and arrow.
+  // current height. drawComboBox starts the text 15 px in and draws the arrow
+  // in the last 30 px.
   int widthToFitOptions() {
-    constexpr int kInsetAndArrow = 30;
+    constexpr int kInsetAndArrow = 45;
     constexpr int kSlack = 4;
     const juce::Font font =
         selectionBox_.getLookAndFeel().getComboBoxFont(selectionBox_);
