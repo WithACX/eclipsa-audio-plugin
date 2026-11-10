@@ -127,6 +127,21 @@ TEST(ExportProfile, youtube_profile_rules) {
       youTubeMixPresentationLimit(ExportProfile::kAdvanced).has_value());
 }
 
+// YouTube - Simple fits up to 1 audio element and YouTube - Base up to 2;
+// Advanced fits any count.
+TEST(ExportProfile, audio_element_fit) {
+  EXPECT_TRUE(exportProfileFitsAudioElements(ExportProfile::kYouTubeSimple, 0));
+  EXPECT_TRUE(exportProfileFitsAudioElements(ExportProfile::kYouTubeSimple, 1));
+  EXPECT_FALSE(
+      exportProfileFitsAudioElements(ExportProfile::kYouTubeSimple, 2));
+  EXPECT_TRUE(exportProfileFitsAudioElements(ExportProfile::kYouTubeBase, 2));
+  EXPECT_FALSE(exportProfileFitsAudioElements(ExportProfile::kYouTubeBase, 3));
+  for (const int numAudioElements : {0, 3, 28}) {
+    EXPECT_TRUE(exportProfileFitsAudioElements(ExportProfile::kAdvanced,
+                                               numAudioElements));
+  }
+}
+
 // An unrecognized stored string loads as Advanced.
 TEST(ExportProfile, unknown_value_loads_advanced) {
   juce::ValueTree tree = RoomSetup().toValueTree();

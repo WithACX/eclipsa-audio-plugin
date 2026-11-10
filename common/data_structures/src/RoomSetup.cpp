@@ -54,6 +54,13 @@ std::optional<int> youTubeMixPresentationLimit(const ExportProfile profile) {
   return std::nullopt;
 }
 
+bool exportProfileFitsAudioElements(const ExportProfile profile,
+                                    const int numAudioElements) {
+  const std::optional<FileProfile> required = requiredFileProfile(profile);
+  return !required.has_value() ||
+         numAudioElements <= FileProfileHelper::profileAudioElements(*required);
+}
+
 ExportProfile exportProfileFromString(const juce::String& str) {
   if (str == "YouTube") {
     return ExportProfile::kYouTubeBase;

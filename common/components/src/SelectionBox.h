@@ -263,6 +263,24 @@ class SelectionBox : public juce::Component {
 
   int getSelectedIndex() { return selectionBox_.getSelectedItemIndex(); }
 
+  // Width at which the longest option draws without truncation, at the
+  // current height. drawComboBox leaves 30 px for the text inset and arrow.
+  int widthToFitOptions() {
+    constexpr int kInsetAndArrow = 30;
+    constexpr int kSlack = 4;
+    const juce::Font font =
+        selectionBox_.getLookAndFeel().getComboBoxFont(selectionBox_);
+    float widest = 0.0f;
+    for (int i = 0; i < selectionBox_.getNumItems(); ++i) {
+      widest = std::max(widest,
+                        font.getStringWidthFloat(selectionBox_.getItemText(i)));
+    }
+    return static_cast<int>(std::ceil(widest)) + kInsetAndArrow + kSlack;
+  }
+
+  // Sized here as well as in paint so widthToFitOptions sees the new height.
+  void resized() override { selectionBox_.setBounds(getLocalBounds()); }
+
   void paint(juce::Graphics& g) override {
     auto bounds = getLocalBounds();
 
