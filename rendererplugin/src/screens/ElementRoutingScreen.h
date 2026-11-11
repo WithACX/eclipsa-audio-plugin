@@ -109,10 +109,6 @@ class ElementRoutingScreen : public juce::Component,
   static FileProfile effectiveProfile(ExportProfile exportProfile,
                                       FileProfile profile);
 
-  // Whether the routing Profile dropdown enables an option.
-  static bool isRoutingProfileAllowed(ExportProfile exportProfile,
-                                      FileProfile profile);
-
   // Layouts offered by "Add Audio Element" for a profile.
   static std::vector<Speakers::AudioElementSpeakerLayout> layoutsForProfile(
       FileProfile profile);
@@ -145,7 +141,7 @@ class ElementRoutingScreen : public juce::Component,
   Speakers::AudioElementSpeakerLayout getAudioElementLayout(
       const juce::String& name);
   FileProfile currentEffectiveProfile() const;
-  void updateProfileOptions();
+  void updateProfileSelector();
 
   HeaderBar headerBar_;
   SelectionBox profileSelectionBox_;

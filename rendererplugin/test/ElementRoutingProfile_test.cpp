@@ -51,28 +51,6 @@ TEST(EffectiveProfile, youtube_forces_required_profile) {
   }
 }
 
-// YouTube - Simple enables only Simple, YouTube - Base only Base, and
-// Advanced every routing profile.
-TEST(AllowedRoutingProfiles, matches_export_profile) {
-  using S = ElementRoutingScreen;
-  EXPECT_TRUE(S::isRoutingProfileAllowed(ExportProfile::kYouTubeSimple,
-                                         FileProfile::SIMPLE));
-  EXPECT_FALSE(S::isRoutingProfileAllowed(ExportProfile::kYouTubeSimple,
-                                          FileProfile::BASE));
-  EXPECT_FALSE(S::isRoutingProfileAllowed(ExportProfile::kYouTubeSimple,
-                                          FileProfile::BASE_ENHANCED));
-  EXPECT_FALSE(S::isRoutingProfileAllowed(ExportProfile::kYouTubeBase,
-                                          FileProfile::SIMPLE));
-  EXPECT_TRUE(S::isRoutingProfileAllowed(ExportProfile::kYouTubeBase,
-                                         FileProfile::BASE));
-  EXPECT_FALSE(S::isRoutingProfileAllowed(ExportProfile::kYouTubeBase,
-                                          FileProfile::BASE_ENHANCED));
-  for (const FileProfile profile :
-       {FileProfile::SIMPLE, FileProfile::BASE, FileProfile::BASE_ENHANCED}) {
-    EXPECT_TRUE(S::isRoutingProfileAllowed(ExportProfile::kAdvanced, profile));
-  }
-}
-
 // Under Advanced, every profile is returned unchanged.
 TEST(EffectiveProfile, advanced_is_unchanged) {
   for (const FileProfile profile :

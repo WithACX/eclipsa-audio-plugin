@@ -99,10 +99,10 @@ ElementRoutingScreen::ElementRoutingScreen(
       "maximum of 28 channels.\n\n"
       "Available audio element layouts are filtered based on remaining "
       "channel capacity and profile limitations.\n\n"
-      "The YouTube - Simple and YouTube - Base export profiles allow only "
-      "their matching profile.");
+      "The YouTube - Simple and YouTube - Base export profiles set the "
+      "matching profile, and it cannot be changed here.");
 
-  updateProfileOptions();
+  updateProfileSelector();
 
   // Update the local rendering with the current audio elements and panners
   updateAudioElementChannels();
@@ -123,7 +123,7 @@ ElementRoutingScreen::ElementRoutingScreen(
 
   exportProfileListener_ =
       std::make_unique<ExportProfileListener>(roomSetupRepository_, [this]() {
-        updateProfileOptions();
+        updateProfileSelector();
         updateAudioElementChannels();
         repaint();
       });
@@ -476,13 +476,6 @@ FileProfile ElementRoutingScreen::effectiveProfile(
   return requiredFileProfile(exportProfile).value_or(profile);
 }
 
-bool ElementRoutingScreen::isRoutingProfileAllowed(
-    const ExportProfile exportProfile, const FileProfile profile) {
-  const std::optional<FileProfile> required =
-      requiredFileProfile(exportProfile);
-  return !required.has_value() || *required == profile;
-}
-
 std::vector<Speakers::AudioElementSpeakerLayout>
 ElementRoutingScreen::layoutsForProfile(const FileProfile profile) {
   if (profile == FileProfile::SIMPLE || profile == FileProfile::BASE) {
@@ -539,22 +532,24 @@ FileProfile ElementRoutingScreen::currentEffectiveProfile() const {
                           currentProfile_);
 }
 
-void ElementRoutingScreen::updateProfileOptions() {
+void ElementRoutingScreen::updateProfileSelector() {
   if (roomSetupRepository_ == nullptr) {
     return;
   }
   const ExportProfile exportProfile =
       roomSetupRepository_->get().getExportProfile();
-  // Option indices match FileProfile values.
-  const int numOptions = profileSelectionBox_.getComboBox()->getNumItems();
-  for (int i = 0; i < numOptions; ++i) {
-    profileSelectionBox_.setOptionEnabled(
-        i, isRoutingProfileAllowed(exportProfile, static_cast<FileProfile>(i)));
+  // A YouTube profile fixes the routing profile, so the selector is locked.
+  const std::optional<FileProfile> required =
+      requiredFileProfile(exportProfile);
+  if (required.has_value()) {
+    profileSelectionBox_.setEnabled(false);
+    profileSelectionBox_.dimSelectionBox();
+  } else {
+    profileSelectionBox_.restoreLookAndFeel();
+    profileSelectionBox_.setEnabled(true);
   }
 
   // Store the required profile so the export uses it, not just the UI limits.
-  const std::optional<FileProfile> required =
-      requiredFileProfile(exportProfile);
   if (!required.has_value() || *required == currentProfile_) {
     return;
   }
@@ -562,7 +557,8 @@ void ElementRoutingScreen::updateProfileOptions() {
   FileExport profileConfig = fileExportRepository_->get();
   profileConfig.setProfile(currentProfile_);
   fileExportRepository_->update(profileConfig);
-  if (static_cast<int>(currentProfile_) < numOptions) {
+  if (static_cast<int>(currentProfile_) <
+      profileSelectionBox_.getComboBox()->getNumItems()) {
     profileSelectionBox_.setSelectedIndex(
         static_cast<int>(currentProfile_),
         juce::NotificationType::dontSendNotification);
