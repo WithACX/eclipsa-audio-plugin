@@ -305,10 +305,16 @@ void ElementRoutingScreen::updateAudioElementChannels() {
     totalChannels += audioElement->getChannelCount();
   }
 
-  // Validate the profile selection and revert if necessary
+  // Validate the profile selection and revert if necessary. A YouTube
+  // profile keeps its locked profile; its export options already exclude
+  // sessions that need more.
   FileProfile minimumProfile =
       FileProfileHelper::minimumProfile(totalChannels, audioElementArray);
-  if (minimumProfile > currentProfile_) {
+  const bool locked =
+      roomSetupRepository_ != nullptr &&
+      requiredFileProfile(roomSetupRepository_->get().getExportProfile())
+          .has_value();
+  if (minimumProfile > currentProfile_ && !locked) {
     LOG_ANALYTICS(RendererProcessor::instanceId_,
                   "Profile downgraded to: " +
                       std::to_string(static_cast<int>(minimumProfile)) +
@@ -549,7 +555,8 @@ void ElementRoutingScreen::updateProfileSelector() {
     profileSelectionBox_.setEnabled(true);
   }
 
-  // Store the required profile so the export uses it, not just the UI limits.
+  // Store the required profile so the routing screen restores it, with its
+  // limits, when the plugin window reopens.
   if (!required.has_value() || *required == currentProfile_) {
     return;
   }

@@ -110,11 +110,13 @@ void RoomMonitoringScreen::initializeExportProfile() {
 }
 
 void RoomMonitoringScreen::updateExportProfileOptions() {
-  const int numAudioElements = repos_.aeRepo_.getItemCount();
+  juce::OwnedArray<AudioElement> audioElements;
+  repos_.aeRepo_.getAll(audioElements);
+  const FileProfile sessionProfile =
+      FileProfileHelper::minimumProfile(audioElements);
   for (int i = 0; i < static_cast<int>(kExportProfileOptions.size()); ++i) {
     exportProfile_.setOptionEnabled(
-        i, exportProfileFitsAudioElements(kExportProfileOptions[i],
-                                          numAudioElements));
+        i, exportProfileFits(kExportProfileOptions[i], sessionProfile));
   }
 }
 
@@ -163,10 +165,9 @@ void RoomMonitoringScreen::paint(juce::Graphics& g) {
 
   // Draw export profile dropdown and export button.
   const int topWidth = topBounds.getWidth();
-  // Set the height first; the fitted width depends on the font it implies.
-  exportProfile_.setBounds(topBounds.withWidth(topWidth * 0.20f));
-  const int profileWidth = std::max(static_cast<int>(topWidth * 0.20f),
-                                    exportProfile_.widthToFitOptions());
+  const int profileWidth =
+      std::max(static_cast<int>(topWidth * 0.20f),
+               exportProfile_.widthToFitOptions(topBounds.getHeight()));
   exportProfile_.setBounds(topBounds.removeFromLeft(profileWidth));
 
   // Adjusted button width to accommodate images and text

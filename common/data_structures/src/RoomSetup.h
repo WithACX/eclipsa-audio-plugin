@@ -95,10 +95,9 @@ std::optional<FileProfile> requiredFileProfile(ExportProfile profile);
 // The most mix presentations a YouTube profile allows; none under Open.
 std::optional<int> youTubeMixPresentationLimit(ExportProfile profile);
 
-// Whether a session's audio element count is within an export profile's
-// limit, which is its required routing profile's limit.
-bool exportProfileFitsAudioElements(ExportProfile profile,
-                                    int numAudioElements);
+// Whether a session needing sessionProfile, by audio element count, channels
+// and layouts, fits an export profile's required routing profile.
+bool exportProfileFits(ExportProfile profile, FileProfile sessionProfile);
 
 juce::String exportProfileToString(ExportProfile profile);
 

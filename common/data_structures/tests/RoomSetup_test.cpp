@@ -125,19 +125,32 @@ TEST(ExportProfile, youtube_profile_rules) {
   EXPECT_FALSE(youTubeMixPresentationLimit(ExportProfile::kOpen).has_value());
 }
 
-// YouTube - Simple fits up to 1 audio element and YouTube - Base up to 2;
-// Open fits any count.
-TEST(ExportProfile, audio_element_fit) {
-  EXPECT_TRUE(exportProfileFitsAudioElements(ExportProfile::kYouTubeSimple, 0));
-  EXPECT_TRUE(exportProfileFitsAudioElements(ExportProfile::kYouTubeSimple, 1));
-  EXPECT_FALSE(
-      exportProfileFitsAudioElements(ExportProfile::kYouTubeSimple, 2));
-  EXPECT_TRUE(exportProfileFitsAudioElements(ExportProfile::kYouTubeBase, 2));
-  EXPECT_FALSE(exportProfileFitsAudioElements(ExportProfile::kYouTubeBase, 3));
-  for (const int numAudioElements : {0, 3, 28}) {
-    EXPECT_TRUE(
-        exportProfileFitsAudioElements(ExportProfile::kOpen, numAudioElements));
-  }
+// Each YouTube profile fits sessions up to its routing profile; Open fits any.
+TEST(ExportProfile, session_fit) {
+  EXPECT_TRUE(exportProfileFits(ExportProfile::kYouTubeSimple, SIMPLE));
+  EXPECT_FALSE(exportProfileFits(ExportProfile::kYouTubeSimple, BASE));
+  EXPECT_TRUE(exportProfileFits(ExportProfile::kYouTubeBase, BASE));
+  EXPECT_FALSE(exportProfileFits(ExportProfile::kYouTubeBase, BASE_ENHANCED));
+  EXPECT_TRUE(exportProfileFits(ExportProfile::kOpen, BASE_ENHANCED));
+}
+
+// Two 7.1.4 elements are within Base's element count but need 24 channels,
+// so the session needs Base Enhanced and YouTube - Base does not fit.
+TEST(ExportProfile, channels_count_toward_fit) {
+  juce::OwnedArray<AudioElement> audioElements;
+  audioElements.add(
+      new AudioElement(juce::Uuid(), "A", Speakers::k7Point1Point4, 0));
+  audioElements.add(
+      new AudioElement(juce::Uuid(), "B", Speakers::k7Point1Point4, 12));
+  const FileProfile session = FileProfileHelper::minimumProfile(audioElements);
+  EXPECT_EQ(session, BASE_ENHANCED);
+  EXPECT_FALSE(exportProfileFits(ExportProfile::kYouTubeBase, session));
+
+  // A single stereo element fits YouTube - Simple.
+  juce::OwnedArray<AudioElement> stereo;
+  stereo.add(new AudioElement(juce::Uuid(), "S", Speakers::kStereo, 0));
+  EXPECT_TRUE(exportProfileFits(ExportProfile::kYouTubeSimple,
+                                FileProfileHelper::minimumProfile(stereo)));
 }
 
 // A session saved with the retired "Advanced" value loads as Open.

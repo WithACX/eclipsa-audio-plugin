@@ -110,11 +110,9 @@ void IAMFFileWriter::populateAudioElementMetadataFromRepository(
   }
 
   // Finally, write out the minimum profile level required for the audio
-  // elements
+  // elements and their channels
   IAMFExportHelper::writeIASeqHdr(
-      FileProfileHelper::minimumProfile(iamfMD.audio_element_metadata_size(),
-                                        audioElements),
-      iamfMD);
+      FileProfileHelper::minimumProfile(audioElements), iamfMD);
 }
 
 void IAMFFileWriter::populateMixPresentationMetadataFromRepository(
