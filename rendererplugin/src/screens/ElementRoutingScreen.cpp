@@ -555,8 +555,7 @@ void ElementRoutingScreen::updateProfileSelector() {
     profileSelectionBox_.setEnabled(true);
   }
 
-  // Store the required profile so the routing screen restores it, with its
-  // limits, when the plugin window reopens.
+  // Store the required profile; the IAMF export writes it to the file header.
   if (!required.has_value() || *required == currentProfile_) {
     return;
   }
