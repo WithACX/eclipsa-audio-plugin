@@ -105,7 +105,7 @@ class ElementRoutingScreen : public juce::Component,
   }
 
   // The profile that limits new audio elements: the YouTube profile's
-  // required profile, or the selected one under Advanced.
+  // required profile, or the selected one under Open.
   static FileProfile effectiveProfile(ExportProfile exportProfile,
                                       FileProfile profile);
 

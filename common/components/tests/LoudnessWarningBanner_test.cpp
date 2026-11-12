@@ -24,7 +24,7 @@
 
 namespace {
 constexpr ExportProfile kYt = ExportProfile::kYouTubeBase;
-constexpr ExportProfile kAdv = ExportProfile::kAdvanced;
+constexpr ExportProfile kAdv = ExportProfile::kOpen;
 }  // namespace
 
 // Under YouTube, only a displayed value above -14.0 warns.
@@ -52,8 +52,8 @@ TEST(LoudnessWarning, youtube_simple_threshold) {
   EXPECT_FALSE(LoudnessWarningBanner::shouldWarn(kSimple, -14.0f, false));
 }
 
-// Under Advanced the banner never warns, however loud the audio is.
-TEST(LoudnessWarning, advanced_never_warns) {
+// Under Open the banner never warns, however loud the audio is.
+TEST(LoudnessWarning, open_never_warns) {
   for (const float value : {-13.9f, -10.0f, 0.0f, -14.0f, -30.0f}) {
     EXPECT_FALSE(LoudnessWarningBanner::shouldWarn(kAdv, value, false));
     EXPECT_FALSE(LoudnessWarningBanner::shouldWarn(kAdv, value, true));

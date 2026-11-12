@@ -189,7 +189,7 @@ TEST_F(FileOutputYouTube, cap_stops_writing_and_records_once) {
   std::filesystem::remove(iamfOutPath);
 
   // Reference: exactly two blocks, the most that fit under the cap.
-  setExportProfile(ExportProfile::kAdvanced);
+  setExportProfile(ExportProfile::kOpen);
   bounce(fio_proc, 2);
   ASSERT_TRUE(std::filesystem::exists(iamfOutPath));
   EXPECT_EQ(kCappedSize, std::filesystem::file_size(iamfOutPath));
@@ -232,9 +232,9 @@ TEST_F(FileOutputYouTube, base_enhanced_session_still_exports) {
   EXPECT_TRUE(std::filesystem::exists(iamfOutPath));
 }
 
-// Under Advanced, the inputs that trip each YouTube limit export as today.
-TEST_F(FileOutputYouTube, advanced_ignores_limits) {
-  setExportProfile(ExportProfile::kAdvanced);
+// Under Open, the inputs that trip each YouTube limit export as today.
+TEST_F(FileOutputYouTube, open_ignores_limits) {
+  setExportProfile(ExportProfile::kOpen);
   const YouTubeExportLimits::Limits kTiny{.maxDurationSec = kCapSec,
                                           .maxBytes = 1};
 
@@ -281,9 +281,9 @@ TEST_F(FileOutputYouTube, premiere_pro_cap_stops_writing) {
   EXPECT_TRUE(std::filesystem::exists(iamfOutPath));
 }
 
-// Under Advanced, the Premiere Pro processor exports the same inputs as today.
-TEST_F(FileOutputYouTube, premiere_pro_advanced_ignores_limits) {
-  setExportProfile(ExportProfile::kAdvanced);
+// Under Open, the Premiere Pro processor exports the same inputs as today.
+TEST_F(FileOutputYouTube, premiere_pro_open_ignores_limits) {
+  setExportProfile(ExportProfile::kOpen);
   setRange(0, kOverCapEnd);
   bouncePremierePro({.maxDurationSec = kCapSec, .maxBytes = 1});
 

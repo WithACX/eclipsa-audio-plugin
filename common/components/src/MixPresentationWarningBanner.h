@@ -83,7 +83,7 @@ class MixPresentationWarningBanner : public WarningBannerBase,
   ExportProfile currentProfile() const {
     return roomSetupRepository_ != nullptr
                ? roomSetupRepository_->get().getExportProfile()
-               : ExportProfile::kAdvanced;
+               : ExportProfile::kOpen;
   }
 
   bool currentCondition() const {

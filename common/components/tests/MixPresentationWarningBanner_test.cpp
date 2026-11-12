@@ -40,10 +40,10 @@ TEST(MixPresentationWarning, youtube_base_warns_above_two) {
   EXPECT_TRUE(Banner::shouldWarn(kBase, 5));
 }
 
-// Under Advanced the banner never warns, however many mixes exist.
-TEST(MixPresentationWarning, advanced_never_warns) {
+// Under Open the banner never warns, however many mixes exist.
+TEST(MixPresentationWarning, open_never_warns) {
   for (const int numMixes : {0, 1, 2, 5}) {
-    EXPECT_FALSE(Banner::shouldWarn(ExportProfile::kAdvanced, numMixes));
+    EXPECT_FALSE(Banner::shouldWarn(ExportProfile::kOpen, numMixes));
   }
 }
 
@@ -82,10 +82,10 @@ TEST(MixPresentationWarningTransition, dismissal_holds_until_recurrence) {
   EXPECT_TRUE(visible);
 }
 
-// Switching from Advanced to YouTube with extra mixes is a rising edge, so a
+// Switching from Open to YouTube with extra mixes is a rising edge, so a
 // banner dismissed earlier shows again.
 TEST(MixPresentationWarningTransition, youtube_reselected_shows_again) {
-  const bool wasWarning = Banner::shouldWarn(ExportProfile::kAdvanced, 3);
+  const bool wasWarning = Banner::shouldWarn(ExportProfile::kOpen, 3);
   const bool isWarning = Banner::shouldWarn(ExportProfile::kYouTubeBase, 3);
   EXPECT_TRUE(Banner::nextVisibility(wasWarning, isWarning, false));
 }

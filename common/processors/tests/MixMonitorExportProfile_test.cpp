@@ -49,7 +49,7 @@ TEST_F(MixMonitorExportProfileTest, profile_change_keeps_stats) {
   seedStats();
   RoomSetup setup = repo_.get();
   ASSERT_EQ(setup.getExportProfile(), ExportProfile::kYouTubeBase);
-  setup.setExportProfile(ExportProfile::kAdvanced);
+  setup.setExportProfile(ExportProfile::kOpen);
   repo_.update(setup);
 
   EXPECT_FALSE(data_.resetStats.load());

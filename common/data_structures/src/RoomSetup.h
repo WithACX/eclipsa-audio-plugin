@@ -79,20 +79,20 @@ static RoomLayout fetchLayoutFromDescription(const juce::String& desc) {
 
 // Platform rules applied to a session. Each YouTube profile pins routing to
 // one IAMF profile, caps mix presentations, warns on loudness, and limits
-// exports; Advanced does not.
-enum class ExportProfile { kYouTubeSimple, kYouTubeBase, kAdvanced };
+// exports; Open does not.
+enum class ExportProfile { kYouTubeSimple, kYouTubeBase, kOpen };
 
 // Dropdown order; an option's index is its position here.
 static const std::array<ExportProfile, 3> kExportProfileOptions = {
     ExportProfile::kYouTubeSimple, ExportProfile::kYouTubeBase,
-    ExportProfile::kAdvanced};
+    ExportProfile::kOpen};
 
 bool isYouTubeProfile(ExportProfile profile);
 
-// The only routing profile a YouTube profile allows; none under Advanced.
+// The only routing profile a YouTube profile allows; none under Open.
 std::optional<FileProfile> requiredFileProfile(ExportProfile profile);
 
-// The most mix presentations a YouTube profile allows; none under Advanced.
+// The most mix presentations a YouTube profile allows; none under Open.
 std::optional<int> youTubeMixPresentationLimit(ExportProfile profile);
 
 // Whether a session's audio element count is within an export profile's
@@ -102,12 +102,12 @@ bool exportProfileFitsAudioElements(ExportProfile profile,
 
 juce::String exportProfileToString(ExportProfile profile);
 
-// Missing or unknown strings map to Advanced, so sessions saved before the
+// Missing or unknown strings map to Open, so sessions saved before the
 // profile existed keep their unrestricted behavior. The retired "YouTube"
-// value maps to YouTube - Base.
+// value maps to YouTube - Base and "Advanced" maps to Open.
 ExportProfile exportProfileFromString(const juce::String& str);
 
-// An out-of-range index maps to Advanced.
+// An out-of-range index maps to Open.
 ExportProfile exportProfileFromOptionIndex(int index);
 
 int optionIndexForExportProfile(ExportProfile profile);

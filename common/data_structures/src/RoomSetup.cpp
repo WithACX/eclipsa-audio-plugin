@@ -20,10 +20,10 @@ juce::String exportProfileToString(const ExportProfile profile) {
       return "YouTube - Simple";
     case ExportProfile::kYouTubeBase:
       return "YouTube - Base";
-    case ExportProfile::kAdvanced:
-      return "Advanced";
+    case ExportProfile::kOpen:
+      return "Open";
   }
-  return "Advanced";
+  return "Open";
 }
 
 bool isYouTubeProfile(const ExportProfile profile) {
@@ -36,7 +36,7 @@ std::optional<FileProfile> requiredFileProfile(const ExportProfile profile) {
       return FileProfile::SIMPLE;
     case ExportProfile::kYouTubeBase:
       return FileProfile::BASE;
-    case ExportProfile::kAdvanced:
+    case ExportProfile::kOpen:
       return std::nullopt;
   }
   return std::nullopt;
@@ -48,7 +48,7 @@ std::optional<int> youTubeMixPresentationLimit(const ExportProfile profile) {
       return 1;
     case ExportProfile::kYouTubeBase:
       return 2;
-    case ExportProfile::kAdvanced:
+    case ExportProfile::kOpen:
       return std::nullopt;
   }
   return std::nullopt;
@@ -65,17 +65,20 @@ ExportProfile exportProfileFromString(const juce::String& str) {
   if (str == "YouTube") {
     return ExportProfile::kYouTubeBase;
   }
+  if (str == "Advanced") {
+    return ExportProfile::kOpen;
+  }
   for (const ExportProfile profile : kExportProfileOptions) {
     if (exportProfileToString(profile) == str) {
       return profile;
     }
   }
-  return ExportProfile::kAdvanced;
+  return ExportProfile::kOpen;
 }
 
 ExportProfile exportProfileFromOptionIndex(const int index) {
   if (index < 0 || index >= static_cast<int>(kExportProfileOptions.size())) {
-    return ExportProfile::kAdvanced;
+    return ExportProfile::kOpen;
   }
   return kExportProfileOptions[index];
 }

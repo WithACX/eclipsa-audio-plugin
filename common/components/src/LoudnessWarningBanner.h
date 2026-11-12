@@ -74,7 +74,7 @@ class LoudnessWarningBanner : public WarningBannerBase, private juce::Timer {
     const ExportProfile profile =
         roomSetupRepository_ != nullptr
             ? roomSetupRepository_->get().getExportProfile()
-            : ExportProfile::kAdvanced;
+            : ExportProfile::kOpen;
     MeasureEBU128::LoudnessStats stats{};
     data_.loudnessEBU128.read(stats);
     return shouldWarn(profile, stats.loudnessIntegrated,

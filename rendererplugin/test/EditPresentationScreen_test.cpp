@@ -41,12 +41,12 @@ TEST(EditPresentationScreen, youtube_base_allows_two_mixes) {
   }
 }
 
-// Under Advanced, mix presentations can be added up to the existing cap of 5.
-TEST(EditPresentationScreen, advanced_keeps_cap_of_five) {
+// Under Open, mix presentations can be added up to the existing cap of 5.
+TEST(EditPresentationScreen, open_keeps_cap_of_five) {
   for (const int numMixes : {0, 1, 4}) {
     EXPECT_TRUE(EditPresentationScreen::canAddMixPresentation(
-        ExportProfile::kAdvanced, numMixes));
+        ExportProfile::kOpen, numMixes));
   }
-  EXPECT_FALSE(EditPresentationScreen::canAddMixPresentation(
-      ExportProfile::kAdvanced, 5));
+  EXPECT_FALSE(
+      EditPresentationScreen::canAddMixPresentation(ExportProfile::kOpen, 5));
 }

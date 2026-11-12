@@ -230,8 +230,8 @@ TEST(RendererProcessorExportProfile, fresh_instance_is_youtube_base) {
 }
 
 // A saved state with no export_profile, as written before the profile
-// existed, loads as Advanced.
-TEST(RendererProcessorExportProfile, legacy_state_loads_advanced) {
+// existed, loads as Open.
+TEST(RendererProcessorExportProfile, legacy_state_loads_open) {
   juce::MemoryBlock state;
   {
     RendererProcessor source;
@@ -252,14 +252,14 @@ TEST(RendererProcessorExportProfile, legacy_state_loads_advanced) {
   RendererProcessor restored;
   restored.setStateInformation(legacyState.getData(),
                                static_cast<int>(legacyState.getSize()));
-  EXPECT_EQ(storedExportProfile(restored), ExportProfile::kAdvanced);
+  EXPECT_EQ(storedExportProfile(restored), ExportProfile::kOpen);
 }
 
 // Saving and restoring the plugin state keeps each export profile.
 TEST(RendererProcessorExportProfile, state_round_trip_keeps_value) {
   for (const ExportProfile profile :
        {ExportProfile::kYouTubeSimple, ExportProfile::kYouTubeBase,
-        ExportProfile::kAdvanced}) {
+        ExportProfile::kOpen}) {
     juce::MemoryBlock state;
     {
       RendererProcessor source;
@@ -268,9 +268,9 @@ TEST(RendererProcessorExportProfile, state_round_trip_keeps_value) {
     }
     RendererProcessor restored;
     // Start from the other value so the restore has to change it.
-    setStoredExportProfile(restored, profile == ExportProfile::kAdvanced
+    setStoredExportProfile(restored, profile == ExportProfile::kOpen
                                          ? ExportProfile::kYouTubeSimple
-                                         : ExportProfile::kAdvanced);
+                                         : ExportProfile::kOpen);
     restored.setStateInformation(state.getData(),
                                  static_cast<int>(state.getSize()));
     EXPECT_EQ(storedExportProfile(restored), profile);
