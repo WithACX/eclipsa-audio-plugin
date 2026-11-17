@@ -1,0 +1,78 @@
+#!/usr/bin/env bash
+# pre-commit-routing -- validate .a-cx/process.yaml model routing at commit time.
+#
+# WHY A COMMIT-TIME CHECK AND NOT ONLY A PREFLIGHT ONE
+# `/deliver-code` and `/deliver-autonomous` already refuse at preflight on an
+# unresolvable routing declaration. That protects the RUN, but it surfaces the
+# mistake at the worst moment -- when someone is trying to deliver -- and only for
+# whoever runs the delivery. This hook moves the same verdict to the moment the
+# declaration is authored, in the repo that authored it.
+#
+# It runs ONLY when .a-cx/process.yaml is staged, so it costs nothing on every
+# other commit. It is a no-op (exit 0) whenever the validator or python3 is
+# missing: a repo that never ran `/setup-repo` again after this shipped must not
+# start failing commits.
+#
+# Exit contract mirrors the validator: 0 clean, 1 refuse (blocks the commit),
+# 2 warnings only (prints and allows). Installed by /setup-repo into the repo's
+# core.hooksPath directory, alongside validate_process_routing.py and its
+# model-routing.yaml snapshot.
+set -u
+
+git rev-parse --show-toplevel >/dev/null 2>&1 || exit 0
+
+# Nothing staged for the config this hook guards -> nothing to check.
+# -F because the path's dots are literal, not regex any-char.
+# ACMR, not ACM: a config staged via a detected RENAME (renaming a template into
+# place, or any repo with diff.renames on) reports as R and would otherwise skip
+# the check entirely.
+git diff --cached --name-only --diff-filter=ACMR 2>/dev/null \
+  | grep -qxF '.a-cx/process.yaml' || exit 0
+
+hook_dir="$(cd "$(dirname "$0")" && pwd)"
+validator="$hook_dir/validate_process_routing.py"
+[ -f "$validator" ] || exit 0
+
+python_bin="$(command -v python3 || true)"
+[ -n "$python_bin" ] || exit 0
+
+# Validate the STAGED content, not the working tree -- the commit is what needs
+# to be correct, and the two can differ.
+# Full XXXXXX template, not `mktemp -t <prefix>`: BSD/macOS mktemp appends the
+# random suffix for you, but GNU coreutils REQUIRES the Xs and fails without them.
+# That failure would hit the `|| exit 0` below and silently disable this hook on
+# every Linux dev repo -- a fail-open in a gate that exists to fail closed.
+staged="$(mktemp "${TMPDIR:-/tmp}/acx-process-yaml.XXXXXX")" || exit 0
+trap 'rm -f "$staged"' EXIT
+git show ":.a-cx/process.yaml" > "$staged" 2>/dev/null || exit 0
+
+output="$("$python_bin" "$validator" --process-config "$staged" 2>&1)"
+status=$?
+
+case "$status" in
+  0) exit 0 ;;
+  2)
+    printf '%s\n' "$output" >&2
+    printf '\n  A-CX routing check: warnings only, commit allowed.\n\n' >&2
+    exit 0
+    ;;
+  *)
+    printf '%s\n' "$output" >&2
+    cat >&2 <<'EOF'
+
+  A-CX routing check FAILED -- commit blocked.
+
+  .a-cx/process.yaml declares model routing this repo's bundled policy cannot
+  resolve, or a reasoning-tier downgrade with no recorded override. /deliver-code
+  and /deliver-autonomous would refuse this config at preflight for the same
+  reason, so fixing it here saves that round trip.
+
+  Schema keys and the routing_overrides shape: knowledge/process-config.md
+  ("Model profile", "Routing overrides"), bundled with the delivery skills.
+
+  To commit anyway (not recommended): git commit --no-verify
+
+EOF
+    exit 1
+    ;;
+esac

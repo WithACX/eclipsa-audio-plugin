@@ -165,3 +165,8 @@ The board's status flow and automations are documented internally in
 - Do not use multi-line block comments above a class-level member variable
   declaration. Keep it to a simple inline comment on the same line (e.g.
   `long framesWritten_;  // samples handed to the writers this export`).
+- Ad hoc subagent/delegated-task spawns in this repo should choose a
+  deliberate model tier and effort rather than inheriting the session
+  default: haiku for mechanical scans/summaries, sonnet for code/content
+  review and research, and the reasoning tier only for architecture or
+  security judgment.
