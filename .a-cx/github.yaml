@@ -10,6 +10,7 @@ tracker:
 project:
   org: withACX
   number: 1
+  link_mode: detached
 
 # Paths the pre-push leak guard treats as A-CX-internal, on top of its built-in
 # defaults (.a-cx/, .claude/, AGENTS.md, CLAUDE.md, ...). A-CX CI workflows are
