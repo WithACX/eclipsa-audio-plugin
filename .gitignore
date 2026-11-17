@@ -42,3 +42,7 @@ CMakeSettings.json
 
 # A-CX tooling scripts live here; override the [Bb]in/ build-artifact ignore above.
 !.a-cx/bin/
+
+# A-CX scratch folders and Cowork drafts under review
+.a-cx/tmp/
+Claude outputs/
