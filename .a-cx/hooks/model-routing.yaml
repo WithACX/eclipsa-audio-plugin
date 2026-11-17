@@ -1,0 +1,139 @@
+# Model Routing -- CANONICAL machine-readable assignments.
+#
+# This file is the single source of truth for the ASSIGNMENT DATA behind the
+# model-routing policy: the tier->model aliases, the task-class -> (tier, effort)
+# table, the Cowork-automation-type assignments, and the exclusion list.
+#
+# knowledge/model-routing.md is the human POLICY doc (rationale, no-regression
+# bar, escalation path, override mechanics). It REFERENCES this file and must not
+# restate these tables -- tooling/verify-model-routing.py fails if it does, so the
+# two cannot drift.
+#
+# Consumers:
+#   - tooling/verify-model-routing.py  (validates agent/command frontmatter)
+#   - deliver-code / deliver-pr-review  (resolve a phase's model, after any
+#     .a-cx/process.yaml `models:` profile override)
+#
+# Update point: when Anthropic changes the lineup, edit `aliases` only. Aliases
+# are version-floating; never pin a version string (e.g. claude-haiku-4-5) here or
+# in any frontmatter. The `codex` block is the one exception, stated there.
+
+# Tier -> floating model alias. The ONLY place the tier<->model binding lives.
+aliases:
+  fast: haiku          # background work, monitoring, simple transforms, cheap sub-tasks
+  balanced: sonnet     # code/security review, implementation, standard dev, drafting
+  reasoning: opus      # architecture, planning, requirements, complex orchestration
+
+# Codex model per tier and role, for a dispatch to the Codex CLI. Codex publishes
+# no floating aliases, so this block names a pinned slug: a Codex-only exception
+# to the no-pin rule above, approved November 15, 2026. Update the
+# slug when the codex-cli catalog changes. Each effort is passed as the
+# same-named Codex reasoning effort. A tier, role or effort absent here has no
+# Codex model, so its dispatch holds rather than substituting one. A
+# deliver-autonomous qualification row (runtime-qualification.json) lists only
+# the pairs from this block that ran on a real client.
+codex:
+  balanced:
+    model: gpt-6.1-sol
+    roles: [unit]
+    efforts: [low, medium, high]
+
+# The set of model values any action agent/command frontmatter may declare.
+# (Mythos-class / fable is deliberately absent -- no floating alias, manual use
+# only; it must never appear in frontmatter.)
+allowed_models: [haiku, sonnet, opus]
+allowed_effort: [low, medium, high, max]
+
+# Task class -> (tier, effort). Orchestrators map a phase to a class, then a class
+# to a model via `aliases`. Authors set an agent/command's frontmatter from the
+# tier of its class here.
+task_classes:
+  background_monitoring:   { tier: fast,      effort: low }
+  build_fix:               { tier: balanced,  effort: medium }
+  implementation:          { tier: balanced,  effort: medium }
+  code_review:             { tier: balanced,  effort: medium }
+  security_review:         { tier: balanced,  effort: high }
+  tdd_authoring:           { tier: balanced,  effort: medium }
+  document_drafting:       { tier: balanced,  effort: medium }
+  skill_command_authoring: { tier: balanced,  effort: medium }
+  client_research:         { tier: balanced,  effort: medium }
+  implementation_planning: { tier: reasoning, effort: medium }
+  requirements_analysis:   { tier: reasoning, effort: medium }
+  architecture:            { tier: reasoning, effort: high }
+  backlog_ordering:        { tier: reasoning, effort: medium }
+  orchestration:           { tier: reasoning, effort: medium }
+  sow_orchestration:       { tier: reasoning, effort: high }
+
+# Delivery-PHASE names (the keys used in `.a-cx/process.yaml` `deliver.models` and
+# by deliver-code / deliver-pr-review) -> task class above. This is the phase->class
+# mapping the orchestrators resolve through, so profile keys and task-class keys
+# never disagree. verify-model-routing.py checks every value here is a real
+# task_class.
+phases:
+  requirements:    requirements_analysis
+  planning:        implementation_planning
+  backlog:         backlog_ordering
+  implementation:  implementation
+  review:          code_review
+  security_review: security_review
+
+# Cowork automations / scheduled tasks have no frontmatter; choose the tier in the
+# automation config. Recommended defaults by automation type:
+cowork_automation_types:
+  learning_sweep_pattern_detection: { tier: fast,      effort: low }
+  scheduled_project_report:         { tier: balanced,  effort: medium }
+  scheduled_client_intel:           { tier: balanced,  effort: medium }
+  scheduled_quality_or_security_audit: { tier: balanced, effort: high }
+  scheduled_planning_or_backlog:    { tier: reasoning, effort: medium }
+  sow_or_commercial_automation:     { tier: reasoning, effort: high }
+
+# Effort assumed by the platform when an agent/command frontmatter omits
+# `effort:` entirely. Not a tier-specific default -- every tier defaults here
+# alike. verify-model-routing.py uses this to evaluate an agent's EFFECTIVE
+# effort (declared, or this value when absent) against its mapped task class.
+platform_default_effort: medium
+
+# Agent name (the `name:` frontmatter value in agents/*.md, without .md) ->
+# task_class key above. Lets verify-model-routing.py cross-check each mapped
+# agent's declared `model:` (resolved to a tier via `aliases`) and its
+# EFFECTIVE `effort:` (declared, or `platform_default_effort` when absent)
+# against the class's {tier, effort}. An agent absent from this mapping is
+# allowed (unmapped agents are not enforced) but is worth adding here so its
+# routing stays checked.
+agent_task_classes:
+  architect: architecture
+  backlog-builder: backlog_ordering
+  client-researcher: client_research
+  cpp-build-resolver: build_fix
+  dotnet-build-resolver: build_fix
+  observer: background_monitoring
+  planner: implementation_planning
+  plugin-creator: orchestration
+  python-build-resolver: build_fix
+  requirements-gatherer: requirements_analysis
+  # The single reviewer runs BOTH dimensions, security included, so it takes
+  # the higher-effort of the two review classes: the balanced/high pair.
+  reviewer: security_review
+  skill-creator: skill_command_authoring
+  sow-creator: sow_orchestration
+  sow-workflow: orchestration
+
+# Skills that must NEVER carry a `model:` field: always-on knowledge skills (they
+# load as context into the active turn; a model: would hijack that turn) and
+# passive language/platform reference skills. The validator FAILS if any of these
+# declares a model:. This is the definitive no-model set -- action skills invoked
+# as discrete tasks (code-review, blueprint, deliver-pr-review, github, ...) are
+# NOT listed and DO carry a model:.
+exclusions:
+  always_on_knowledge:
+    - a-cx-brand-guidelines
+    - coding-standards
+    - naming-code
+    - git-workflow
+    - codebase-onboarding
+  passive_reference:
+    - python
+    - java
+    - cpp
+    - csharp
+    - swift

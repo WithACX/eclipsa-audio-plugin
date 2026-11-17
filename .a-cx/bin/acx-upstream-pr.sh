@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 #
 # acx-upstream-pr.sh -- one deliberate command to open a CLEAN PR to a public
-# upstream from an A-CX fork (DPM-07, objective O9).
+# upstream from an A-CX fork.
 #
-# Version: 2  (PRG-02: assigns an authorized reviewer on the opened upstream PR;
-#              existing repos must re-run /setup-repo to pick up this version)
+# Version: 3  (refuses a wrong upstream before any push, and resolves python3 or
+#              python for the .py guard; existing repos must re-run /setup-repo
+#              to pick up this version)
 #
 # What it does, in order:
 #   1. Verify preconditions (git repo, upstream + fork remotes, clean tree).
@@ -12,24 +13,24 @@
 #      OPEN fork PR for the current branch (most upstream PRs mirror a fork PR);
 #      fall back to HEAD when no such PR is found. Explicit --source overrides.
 #   3. Fetch the upstream and fast-forward local `main` to the upstream default
-#      branch (main mirrors upstream cleanly -- ADR-0067 topology).
+#      branch (main mirrors upstream cleanly -- the fork topology).
 #   4. Create a fresh contribution branch FROM `main`, so A-CX tooling commits
 #      (which live only on `acx/dev`) structurally cannot appear in the diff.
 #   5. Replay the contribution commits (merge-base(upstream, <source>)..<source>)
 #      onto the fresh branch, AUTO-EXCLUDING commits that touch only guarded
-#      internal paths (DPM-11). A commit that MIXES internal paths with
+#      internal paths. A commit that MIXES internal paths with
 #      contribution code aborts the run (nothing pushed) -- split it per the
-#      DPM-10 "Commit Separation on acx/dev" rule and retry. Exclusion reuses the
+#      "Commit Separation on acx/dev" rule and retry. Exclusion reuses the
 #      leak guard's shared `classify` matcher, so "internal" means one thing.
 #   6. Run the repo's installed pre-push guard against the exact upstream-bound
 #      range as a BACKSTOP; abort if any guarded A-CX path is present.
 #   7. Push the branch to the fork and open the PR against the upstream
 #      (head = fork branch, base = upstream default branch).
 #
-# It is a DELIBERATE, opt-in action. deliver-code never calls it. It works from
-# Claude Code and Cowork (both drive git/gh the same way).
+# It is a DELIBERATE, opt-in action. deliver-code never calls it. It runs in Bash
+# (Git Bash on native Windows) from any client that drives git and gh.
 #
-# This is the ADR-0067 "cut the PR from main" flow, automated. The clean-branch
+# This is the "cut the PR from main" flow, automated. The clean-branch
 # topology is the PRIMARY control; the pre-push guard is the backstop.
 #
 # Usage:
@@ -124,7 +125,7 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 cd "$REPO_ROOT"
 
 [ -n "$BRANCH" ] || die "--branch <name> is required"
-# A reviewer is mandatory to OPEN a PR (objective O2): an upstream contribution
+# A reviewer is mandatory to OPEN a PR: an upstream contribution
 # must never land with nobody accountable to review it. --no-pr (push only) needs
 # no reviewer since no PR is opened. The /upstream-pr command prompts for the
 # login and validates reviewer-not-author via the shared eligibility helper before
@@ -142,11 +143,41 @@ git remote get-url "$UPSTREAM_REMOTE" >/dev/null 2>&1 \
 git remote get-url "$FORK_REMOTE" >/dev/null 2>&1 \
   || die "no '$FORK_REMOTE' remote (set ACX_FORK_REMOTE or add the remote)"
 
+# Refuse a wrong upstream before anything is created or pushed. An upstream that
+# is the fork itself, or a withACX repository, is not an external public upstream,
+# and a PR "back" to it would send A-CX work where this flow never applies.
+UPSTREAM_URL="$(git remote get-url "$UPSTREAM_REMOTE")"
+FORK_URL="$(git remote get-url "$FORK_REMOTE")"
+[ "$UPSTREAM_URL" != "$FORK_URL" ] \
+  || die "'$UPSTREAM_REMOTE' and '$FORK_REMOTE' point at the same repository ($UPSTREAM_URL) -- refusing"
+lower() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]'; }
+URL_OWNER="$(printf '%s' "$UPSTREAM_URL" \
+  | sed -n -E 's#^(https?://([^@/]+@)?github\.com/|(ssh://)?git@github\.com[:/])([^/]+)/.*#\4#p')"
+[ "$(lower "$URL_OWNER")" != "withacx" ] \
+  || die "'$UPSTREAM_REMOTE' is a withACX repository ($UPSTREAM_URL), not an external upstream -- this flow applies only to forks of a non-A-CX public upstream"
+UPSTREAM_SLUG=""
+FORK_OWNER=""
+if [ "$OPEN_PR" -eq 1 ]; then
+  UPSTREAM_SLUG="$(gh repo view "$UPSTREAM_URL" --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
+  [ -n "$UPSTREAM_SLUG" ] || die "cannot resolve the upstream repo slug from remote '$UPSTREAM_REMOTE'"
+  FORK_SLUG_RESOLVED="$(gh repo view "$FORK_URL" --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
+  [ -n "$FORK_SLUG_RESOLVED" ] || die "cannot resolve the fork repo slug from remote '$FORK_REMOTE'"
+  FORK_OWNER="${FORK_SLUG_RESOLVED%%/*}"
+  [ "$(lower "${UPSTREAM_SLUG%%/*}")" != "withacx" ] \
+    || die "upstream '$UPSTREAM_SLUG' is a withACX repository, not an external upstream -- refusing"
+  [ "$(lower "$UPSTREAM_SLUG")" != "$(lower "$FORK_SLUG_RESOLVED")" ] \
+    || die "upstream and fork both resolve to '$UPSTREAM_SLUG' -- refusing"
+fi
+
+# Python for the .py guard/classify fallbacks: python3 may be absent on Windows
+# Git Bash, where the interpreter is often only `python`.
+PY="$(command -v python3 || command -v python || true)"
+
 if [ -n "$(git status --porcelain)" ]; then
   die "working tree is not clean -- commit or stash changes before running"
 fi
 
-# Default source = the open fork PR for the current branch (DPM-11). Most
+# Default source = the open fork PR for the current branch. Most
 # upstream PRs mirror a fork PR, so this removes the per-run --source bookkeeping.
 # Explicit --source always wins; fall back to HEAD when no open fork PR is found.
 if [ "$SOURCE_EXPLICIT" -eq 0 ]; then
@@ -199,7 +230,7 @@ if [ "$DRY_RUN" -eq 0 ] && [ -z "$GUARD" ]; then
   die "pre-push guard not found (run /setup-repo) -- refusing to open an upstream PR without the leak guard"
 fi
 
-# Snapshot the guard NOW, before any checkout (#456). The backstop (step 5) runs
+# Snapshot the guard NOW, before any checkout. The backstop (step 5) runs
 # AFTER the fresh branch is checked out from the upstream base, where the guard's
 # working-tree path (e.g. `.a-cx/hooks/pre-push`) does NOT exist -- it is an
 # internal-only path never present on the public upstream. Copy the guard's
@@ -210,13 +241,14 @@ if [ -n "$GUARD" ]; then
   GUARD_SNAPSHOT="$(mktemp "${TMPDIR:-/tmp}/acx-prepush.XXXXXX")"
   cp "$GUARD" "$GUARD_SNAPSHOT"
   # Owner-only exec (mktemp made it 0600; `cp` does not carry the exec bit). The
-  # python3 fallback at the backstop covers the rare chmod failure.
+  # backstop runs a Python guard through the interpreter, so a chmod failure
+  # only matters for a non-Python hook.
   chmod u+x "$GUARD_SNAPSHOT" 2>/dev/null || true
   # shellcheck disable=SC2064
   trap "rm -f '$GUARD_SNAPSHOT'" EXIT
 fi
 
-# Locate the classify tool for the config-only exclusion (DPM-11). It reuses the
+# Locate the classify tool for the config-only exclusion. It reuses the
 # leak guard's shared matcher: prefer the tracked .a-cx/bin copy (external forks),
 # then the installed guard itself (detached repos keep check_upstream_leak.py at
 # core.hooksPath/pre-push). Absent -> exclusion is skipped with a warning (the
@@ -227,14 +259,22 @@ for cand in ".a-cx/bin/check_upstream_leak.py" "${HOOKS_PATH:+$HOOKS_PATH/pre-pu
 done
 
 # classify_commit <sha> -> prints 'empty'|'config-only'|'contribution'|'mixed',
-# or 'error' if the tool fails. Runs the tool directly when executable, else via
-# python3 (a non-executable tracked copy).
+# or 'error' if the tool fails. Runs through the resolved interpreter, else
+# directly when executable.
+#
+# stderr is deliberately NOT discarded: the classifier prints one line per
+# `scm.external_paths` exclusion it applied, and this replay filter is
+# one of the four consumers that must not swallow that relaxation. Command
+# substitution captures stdout only, so the verdict parsed by the caller is
+# unaffected; a genuine guard failure is now visible instead of silent.
 classify_commit() {
   local c="$1"
-  if [ -x "$CLASSIFY_TOOL" ]; then
-    "$CLASSIFY_TOOL" classify "$c" 2>/dev/null || echo "error"
+  if [ -n "$PY" ]; then
+    "$PY" "$CLASSIFY_TOOL" classify "$c" || echo "error"
+  elif [ -x "$CLASSIFY_TOOL" ]; then
+    "$CLASSIFY_TOOL" classify "$c" || echo "error"
   else
-    python3 "$CLASSIFY_TOOL" classify "$c" 2>/dev/null || echo "error"
+    echo "error"
   fi
 }
 
@@ -263,7 +303,7 @@ MERGE_BASE="$(git merge-base "$UPSTREAM_REMOTE/$BASE" "$SOURCE_SHA")" \
 # merged, and `git cherry-pick` cannot replay a merge without an explicit parent.
 # Enumerating individual non-merge SHAs (never a raw `A..B` range) is what keeps
 # a "Merge pull request" commit in a drifted fork's history from crashing the
-# cherry-pick (#456).
+# cherry-pick.
 FULL_COUNT="$(git rev-list --count "$MERGE_BASE..$SOURCE_SHA")"
 MERGE_COUNT="$(git rev-list --count --merges "$MERGE_BASE..$SOURCE_SHA")"
 if [ "$SINGLE" -eq 1 ]; then
@@ -289,7 +329,7 @@ else
 fi
 [ -n "$CANDIDATES" ] || die "no non-merge contribution commits in the selected range (nothing to PR)"
 
-# Filter the replay set (DPM-11): drop config-only commits, ABORT on a mixed
+# Filter the replay set: drop config-only commits, ABORT on a mixed
 # commit (nothing pushed -- no branch exists yet, so nothing to unwind). Done
 # before branch creation and in both real and dry-run mode so the plan is
 # accurate. REPLAY holds the commits to cherry-pick, oldest first.
@@ -304,7 +344,7 @@ if [ -n "$CLASSIFY_TOOL" ]; then
       contribution|empty)
         REPLAY+=("$c") ;;
       mixed)
-        die "commit ${c:0:12} mixes A-CX-internal paths with contribution code -- split it per the 'Commit Separation on acx/dev' rule in rules/common/git-workflow.md, then retry (nothing pushed)" ;;
+        die "commit ${c:0:12} mixes A-CX-internal paths with contribution code -- split it per the 'Commit Separation on acx/dev' rule in the upstream-pr skill's references/upstream-fork-workflow.md, then retry (nothing pushed)" ;;
       *)
         die "could not classify commit ${c:0:12} ('$verdict') -- aborting rather than risk leaking internal content (nothing pushed)" ;;
     esac
@@ -318,7 +358,7 @@ else
   while IFS= read -r c; do [ -n "$c" ] && REPLAY+=("$c"); done < <(printf '%s\n' "$CANDIDATES")
 fi
 
-# Visibility (#456): always list what will be replayed, and warn on a wide range,
+# Visibility: always list what will be replayed, and warn on a wide range,
 # so a drifted fork's sweep is never silent.
 if [ "$SINGLE" -eq 1 ]; then
   note "replaying ${#REPLAY[@]} commit(s) via --single onto a clean branch from $BASE (fork is $FULL_COUNT commit(s) ahead of upstream):"
@@ -349,7 +389,7 @@ if [ "$DRY_RUN" -eq 0 ]; then
   # Cherry-pick the replay set as individual SHAs, oldest first. REPLAY is always
   # a list of non-merge commits (both the classify and the degraded fallback
   # paths), never a raw `A..B` range -- so a merge commit in the range can never
-  # reach `git cherry-pick` and crash it (#456).
+  # reach `git cherry-pick` and crash it.
   if ! git cherry-pick "${REPLAY[@]}"; then
     git cherry-pick --abort 2>/dev/null || true
     git checkout - >/dev/null 2>&1 || true
@@ -360,20 +400,22 @@ fi
 
 # --- 5. Pre-push guard backstop (respect it; never bypass) ------------------
 # GUARD_SNAPSHOT was captured in the preconditions, before the branch existed --
-# the working-tree guard path does not exist on this clean checkout (#456).
+# the working-tree guard path does not exist on this clean checkout.
 if [ "$DRY_RUN" -eq 0 ]; then
   BRANCH_SHA="$(git rev-parse HEAD)"
   BASE_SHA="$(git rev-parse "$UPSTREAM_REMOTE/$BASE")"
-  UPSTREAM_URL="$(git remote get-url "$UPSTREAM_REMOTE")"
   note "checking the upstream-bound diff against the pre-push guard ($GUARD)..."
   # Invoke the guard SNAPSHOT exactly as git would: `<hook> <remote-name>
-  # <remote-url>` with the ref update on stdin. Run it directly when executable
-  # (its shebang picks the interpreter -- works for the Python A-CX guards and for
-  # a shell hooks-manager pre-push); fall back to python3 for a non-executable copy.
-  if [ -x "$GUARD_SNAPSHOT" ]; then
+  # <remote-url>` with the ref update on stdin. A Python guard (the A-CX ones)
+  # runs through the resolved interpreter, since its `python3` shebang fails where
+  # only `python` exists; any other hook (a shell hooks manager) runs directly.
+  if head -n 1 "$GUARD_SNAPSHOT" | grep -q python; then
+    [ -n "$PY" ] || die "no python3 or python on PATH to run the pre-push guard -- refusing"
+    guard_cmd=( "$PY" "$GUARD_SNAPSHOT" "$UPSTREAM_REMOTE" "$UPSTREAM_URL" )
+  elif [ -x "$GUARD_SNAPSHOT" ]; then
     guard_cmd=( "$GUARD_SNAPSHOT" "$UPSTREAM_REMOTE" "$UPSTREAM_URL" )
   else
-    guard_cmd=( python3 "$GUARD_SNAPSHOT" "$UPSTREAM_REMOTE" "$UPSTREAM_URL" )
+    die "pre-push guard $GUARD is neither a Python script nor executable -- refusing"
   fi
   # Feed the guard the exact ref update git would send on a push to upstream.
   if ! printf 'refs/heads/%s %s refs/heads/%s %s\n' "$BRANCH" "$BRANCH_SHA" "$BASE" "$BASE_SHA" \
@@ -393,10 +435,6 @@ if [ "$OPEN_PR" -eq 0 ]; then
   exit 0
 fi
 
-UPSTREAM_SLUG="$(gh repo view "$(git remote get-url "$UPSTREAM_REMOTE")" --json nameWithOwner -q .nameWithOwner 2>/dev/null || true)"
-[ -n "$UPSTREAM_SLUG" ] || die "cannot resolve the upstream repo slug from remote '$UPSTREAM_REMOTE'"
-FORK_OWNER="$(gh repo view "$(git remote get-url "$FORK_REMOTE")" --json owner -q .owner.login 2>/dev/null || true)"
-[ -n "$FORK_OWNER" ] || die "cannot resolve the fork owner from remote '$FORK_REMOTE'"
 [ -z "$BODY" ] && BODY="Contribution from an A-CX fork. Cut cleanly from \`$BASE\`; contains no A-CX tooling paths."
 
 note "opening PR: $FORK_OWNER:$BRANCH -> $UPSTREAM_SLUG:$BASE"

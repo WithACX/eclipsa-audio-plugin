@@ -1,6 +1,8 @@
 # .a-cx/process.yaml -- A-CX process config for this repo
 # Read by /orchestrate and /deliver-code. Absent fields = defaults.
 
+audience: standard
+
 flags:
   tdd: false               # false: skip tdd-guide in all workflows
   security_review: true    # false: skip security-reviewer (rarely justified)
@@ -17,6 +19,18 @@ deliver:
   # worktree_root: .a-cx/worktrees/  # where per-run worktrees live (default
                            # shown); must be gitignored and excluded from
                            # tool/skill directory scans -- see gitignore note below
+  status_paths:            # internal work product: a change touching only
+    - ".a-cx/learnings/*.md"  # these skips the full CI suite
+    - ".a-cx/observations.md"
+    - ".a-cx/plan/**"
+    - ".a-cx/README.md"
+  run_profiles:            # per-profile grants for /deliver-autonomous;
+    overnight:             # each matches the top-level admin_bypass above
+      admin_bypass: true
+    drain:
+      admin_bypass: true
+    assigned:
+      admin_bypass: true
 
 # limits:                  # defaults shown; uncomment to tighten
 #   max_tasks_per_run: 15
