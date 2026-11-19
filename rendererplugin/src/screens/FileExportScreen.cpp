@@ -17,6 +17,7 @@
 #include "../RendererProcessor.h"
 #include "components/src/EclipsaColours.h"
 #include "components/src/ExportValidation.h"
+#include "components/src/YouTubeUpload.h"
 #include "data_structures/src/FileExport.h"
 #include "data_structures/src/FilePlayback.h"
 #include "data_structures/src/MixPresentation.h"
@@ -47,6 +48,7 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
       exportVideoFolder_("Save video to ...", ".mp4"),
       exportVideoFolderErrorLabel_("ExportVideoFolderErrLbl", ""),
       videoSource_("Video source"),
+      youtubeUploadButton_("Upload to YouTube"),
       audioOutputSelect_(
           "Select a file to export audio to",
           juce::File::getSpecialLocation(juce::File::userDesktopDirectory),
@@ -447,6 +449,12 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
   videoSource_.setOnReturnCallback(validateVideoSource);
   videoSource_.setOnFocusLostCallback(validateVideoSource);
 
+  youtubeUploadButton_.setColour(juce::TextButton::textColourOffId,
+                                 EclipsaColours::green);
+  youtubeUploadButton_.onClick = [this] {
+    YouTubeUpload::openUploadPage(repository_->get());
+  };
+
   exportAudioElementsToggle_.setToggleState(
       config.getExportAudioElements(),
       juce::NotificationType::dontSendNotification);
@@ -787,6 +795,14 @@ void FileExportScreen::paint(juce::Graphics& g) {
     auto videoErrorRow = rightSideBounds.removeFromTop(20);
     exportVideoFolderErrorLabel_.setBounds(
         videoErrorRow.removeFromLeft(componentWidth));
+
+    // Only offer the upload when muxing produces a video to upload.
+    addChildComponent(youtubeUploadButton_);
+    youtubeUploadButton_.setVisible(muxVideoToggle_.getToggleState());
+    if (muxVideoToggle_.getToggleState()) {
+      row = rightSideBounds.removeFromTop(rowHeight * 0.75f);
+      youtubeUploadButton_.setBounds(row.removeFromLeft(200));
+    }
   }
   // Hide video export/mux options.
   else {
@@ -797,6 +813,7 @@ void FileExportScreen::paint(juce::Graphics& g) {
     browseVideoSourceButton_.setVisible(false);
     exportVideoFolder_.setVisible(false);
     browseVideoButton_.setVisible(false);
+    youtubeUploadButton_.setVisible(false);
   }
 
   // Draw in the manual export button

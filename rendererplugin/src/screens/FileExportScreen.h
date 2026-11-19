@@ -138,6 +138,7 @@ class FileExportScreen : public juce::Component,
   TitledTextBox videoSource_;
   juce::Label videoSourceErrorLabel_;
   juce::ImageButton browseVideoSourceButton_;
+  juce::TextButton youtubeUploadButton_;
 
   // Player elements
   ExportValidationComponent exportValidation_;
