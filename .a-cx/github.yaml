@@ -19,3 +19,8 @@ project:
 scm:
   internal_paths:
     - .github/workflows/acx-dev-ci.yml
+
+# Engagement link: the project code this repository's work is reported under.
+engagement:
+  client: Google
+  project_code: GOO-GRM1
