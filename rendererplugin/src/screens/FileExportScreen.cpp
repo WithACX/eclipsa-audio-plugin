@@ -209,6 +209,10 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
         kSelectableAudioFileFormats[kIndex].format;
     const juce::String kNewExtension = getAudioFileFormatExtension(kNewFormat);
     config.setAudioFileFormat(kNewFormat);
+    if (kNewFormat != AudioFileFormat::IAMF) {
+      config.setExportVideo(false);
+    }
+    updateMuxVideoAvailability(kNewFormat);
 
     // Swap the old format's extension on an existing path rather than
     // appending the new one after it.
@@ -464,6 +468,13 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
     config.setExportVideo(muxVideoToggle_.getToggleState());
     repository_->update(config);
   };
+  updateMuxVideoAvailability(config.getAudioFileFormat());
+  if (config.getAudioFileFormat() != AudioFileFormat::IAMF &&
+      config.getExportVideo()) {
+    FileExport current = repository_->get();
+    current.setExportVideo(false);
+    repository_->update(current);
+  }
 
   enableFileExport_.setToggleState(
       config.getExportAudio(), juce::NotificationType::dontSendNotification);
@@ -567,7 +578,7 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
       browseButton_.setEnabled(true);
       exportPath_.setEnabled(true);
       exportAudioElementsToggle_.setEnabled(true);
-      muxVideoToggle_.setEnabled(true);
+      updateMuxVideoAvailability(config.getAudioFileFormat());
       videoSource_.setEnabled(true);
       exportVideoFolder_.setEnabled(true);
       browseVideoButton_.setEnabled(true);
@@ -1095,6 +1106,18 @@ void FileExportScreen::refreshFileExportComponents() {
   }
 
   repaint();
+}
+
+void FileExportScreen::updateMuxVideoAvailability(
+    const AudioFileFormat format) {
+  const bool kMuxAvailable = format == AudioFileFormat::IAMF;
+  if (!kMuxAvailable) {
+    muxVideoToggle_.setToggleState(
+        false, juce::NotificationType::dontSendNotification);
+  }
+  muxVideoToggle_.setEnabled(kMuxAvailable);
+  muxVideoToggle_.setTooltip(
+      kMuxAvailable ? "" : "Video muxing is only available for IAMF exports.");
 }
 
 bool FileExportScreen::validFileExportConfig(const FileExport& config) {

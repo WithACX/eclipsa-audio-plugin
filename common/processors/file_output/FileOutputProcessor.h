@@ -115,6 +115,10 @@ class FileOutputProcessor : public ProcessorBase {
 
   void recordExportError(ExportError error);
 
+  // Only IAMF exports are muxed, so a stale exportVideo flag saved alongside
+  // a WAV format is ignored.
+  static bool shouldMuxVideo(const FileExport& config);
+
   // Classifies a file write failure by probing whether the parent directory
   // of `path` is actually writable. The real write attempt has already
   // failed by the time this runs, so this only distinguishes a permission

@@ -72,6 +72,10 @@ class FileExportScreen : public juce::Component,
 
   bool validFileExportConfig(const FileExport& config);
 
+  // Video muxing only handles IAMF output: any other format turns the mux
+  // toggle off and disables it. The caller persists exportVideo.
+  void updateMuxVideoAvailability(AudioFileFormat format);
+
   // Helper to expand, validate, and update an error label for paths.
   std::pair<juce::String, bool> validateAndShowPathError(
       const juce::String& inputPath, const bool mustExist,
