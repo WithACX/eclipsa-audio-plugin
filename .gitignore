@@ -46,3 +46,7 @@ CMakeSettings.json
 # A-CX scratch folders and Cowork drafts under review
 .a-cx/tmp/
 Claude outputs/
+
+# Python bytecode (A-CX tooling scripts under .a-cx/bin/)
+__pycache__/
+*.py[cod]
