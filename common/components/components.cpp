@@ -19,7 +19,6 @@
 #include "src/ChannelListComponent.cpp"
 #include "src/ControlKnob.cpp"
 #include "src/ControlKnobSkewed.cpp"
-#include "src/RoomSetupScreen.cpp"
 #include "src/SegmentedToggleButton.cpp"
 #include "src/SegmentedToggleImageButton.cpp"
 #include "src/SliderLabelAttachment.cpp"

@@ -44,7 +44,6 @@ END_JUCE_MODULE_DECLARATION
 #include "src/LoudnessWarningBanner.h"
 #include "src/MainEditor.h"
 #include "src/MixPresentationWarningBanner.h"
-#include "src/RoomSetupScreen.h"
 #include "src/RoundedRectangle.h"
 #include "src/SegmentedToggleButton.h"
 #include "src/SegmentedToggleImageButton.h"
