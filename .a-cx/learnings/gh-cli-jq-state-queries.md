@@ -25,3 +25,5 @@ write side of this rule and would otherwise read as contradicting it.
 - Pattern: Every GitHub state check (PR view, issue state, sub-issues, blockers, criteria, board status) uses `gh <command> --json --jq '<filter>'`
 - Events: 1 (PR state), 5 (merge verification), 7 (sub-issues + blockers + labels), 17 (sibling tasks), 21 (close + board), 23 (parent state + sibling blockers)
 - Enables: error-free state queries, idempotent operations, easy piping to Python scripts
+- Observed 4 times in session 20d2857c-ac35-453b-be66-b4c8b81c4599 (2026-11-25)
+- Pattern: PR list and issue view reads used `--json <fields> -q <jq filter>` (PR state and draft flag, issue state and project status, issue body)
