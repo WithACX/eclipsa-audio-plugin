@@ -21,6 +21,10 @@ Observed 6+ times across unit #55 execution (run aut-20260813-55):
 5. Routing reconciliation: `reconcile_routing.py` confirms no routing divergences (event 37)
 6. Routing observations review: confirm agent model choices and attribution (event 40)
 
+## Between-unit advance (added evidence)
+- Observed 3 times in session 20d2857c-ac35-453b-be66-b4c8b81c4599 (2026-11-25)
+- Pattern: after each unit returned, the orchestrator recorded the outcome (`disp` then `ret` with a one-line `outcome:` value), then ran `gate` and `next --finished <issues>` before dispatching the next queue entry.
+
 ## Why
 The autonomous run machinery depends on ledger invariants: units recorded with payloads, PRs verified non-merged or merged with witnesses, derived issues traceably filed, routing observations logged. A stall or interruption can leave the ledger in an inconsistent state (e.g., PR filed but payload not recorded, or derived issue filed without Origin marker). Post-completion reconciliation catches these before the run is marked complete, allowing recovery or blocking before the run facade closes.
 
