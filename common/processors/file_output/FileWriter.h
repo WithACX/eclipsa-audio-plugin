@@ -137,7 +137,7 @@ class FileWriter {
     return outputFile_.getFullPathName().toStdString();
   }
 
-  int getFramesWritten() { return framesWritten; }
+  juce::int64 getFramesWritten() { return framesWritten; }
 
  private:
   juce::AudioFormatWriter* writer_;
@@ -146,7 +146,7 @@ class FileWriter {
   // lifetime argument.
   juce::FileOutputStream* outputStream_;
   juce::File outputFile_;
-  int framesWritten;
+  juce::int64 framesWritten;
   int numChannels_;
   int firstChannel_;
   int bitDepth_;

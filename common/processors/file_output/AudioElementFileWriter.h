@@ -18,58 +18,58 @@
 #include <juce_audio_processors/juce_audio_processors.h>
 #include <juce_dsp/juce_dsp.h>
 
+#include <memory>
+#include <string>
+
 #include "FileWriter.h"
 #include "data_structures/src/AudioElement.h"
 
 class AudioElementFileWriter {
  public:
   AudioElementFileWriter(const juce::String& filename, double sampleRate,
-                         int bitDepth, AudioCodec codec,
-                         AudioElement& element)
-      : element_(element)  // Use a local copy of the audio element to avoid
-                           // updates elsewhere causing issues
-  {
-    fileWriter = new FileWriter(
-        filename, sampleRate,
-        FileWriter::defaultWavChannelSet(element.getChannelCount()),
-        element.getFirstChannel(), bitDepth, codec);
-  }
+                         int bitDepth, AudioCodec codec, AudioElement& element)
+      : element_(element),
+        fileWriter_(std::make_unique<FileWriter>(
+            filename, sampleRate,
+            FileWriter::defaultWavChannelSet(element.getChannelCount()),
+            element.getFirstChannel(), bitDepth, codec)) {}
 
-  ~AudioElementFileWriter() {
-    close();
-    if (fileWriter != nullptr) delete fileWriter;
-  };
+  ~AudioElementFileWriter() { close(); }
 
-  // disable copy semantics (copy-ctor & copy-assignment) to prevent
-  // accidental shallow copies and double-free bugs
   AudioElementFileWriter(const AudioElementFileWriter&) = delete;
   AudioElementFileWriter& operator=(const AudioElementFileWriter&) = delete;
 
-  // enable default move semantics so the object can be relocated
-  // (e.g. by std::vector growth) without copying internal buffers
+  // A moved-from writer holds no FileWriter: its methods report "not open"
+  // and its destructor closes nothing.
   AudioElementFileWriter(AudioElementFileWriter&&) noexcept = default;
   AudioElementFileWriter& operator=(AudioElementFileWriter&&) noexcept =
       default;
 
   // Returns whether the underlying file was successfully opened for writing.
-  bool isOpen() const { return fileWriter != nullptr && fileWriter->isOpen(); }
+  bool isOpen() const {
+    return fileWriter_ != nullptr && fileWriter_->isOpen();
+  }
 
   // Returns false on a write failure (disk full, WAV size limit, etc.).
   bool write(juce::AudioBuffer<float>& buffer) {
-    return fileWriter->write(buffer);
+    return fileWriter_ != nullptr && fileWriter_->write(buffer);
   }
 
   // Returns false if the writer opened but failed to flush/close cleanly.
-  bool close() { return fileWriter->close(); }
+  bool close() { return fileWriter_ == nullptr || fileWriter_->close(); }
 
   AudioElement& getElement() { return element_; }
 
-  std::string getFilePath() { return fileWriter->getFilePath(); }
+  std::string getFilePath() {
+    return fileWriter_ != nullptr ? fileWriter_->getFilePath() : std::string();
+  }
 
-  int getFramesWritten() { return fileWriter->getFramesWritten(); }
+  juce::int64 getFramesWritten() {
+    return fileWriter_ != nullptr ? fileWriter_->getFramesWritten() : 0;
+  }
 
  private:
   AudioElement element_;  // Use a local copy to avoid updates elsewhere causing
                           // issues
-  FileWriter* fileWriter;
+  std::unique_ptr<FileWriter> fileWriter_;
 };
