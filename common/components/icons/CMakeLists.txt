@@ -22,7 +22,6 @@ juce_add_binary_data(binary_data
         Headphones.png
         Reset.png
         Checkmark.png
-        room_vis_placeholder.png
         Back.png
         Iso.png
         Left.png
@@ -30,7 +29,6 @@ juce_add_binary_data(binary_data
         Add.png
         RemoveAE.png
         Plus.png
-        room_vis_placeholder.png
         CurveElevation.png
         DomeElevation.png
         FlatElevation.png
