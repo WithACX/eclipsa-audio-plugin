@@ -21,6 +21,8 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "data_repository/implementation/ActiveMixPresentationRepository.h"
@@ -588,6 +590,43 @@ TEST(WavFileOutputFileWriter,
   EXPECT_FALSE(writer.write(buffer));
   EXPECT_EQ(writer.getFramesWritten(), 0);
   writer.close();
+  std::filesystem::remove(kOutPath);
+}
+
+static_assert(
+    std::is_same_v<decltype(std::declval<FileWriter&>().getFramesWritten()),
+                   juce::int64>);
+
+// Moving an AudioElementFileWriter transfers sole ownership of its
+// FileWriter: the source is left empty, and destroying both closes the file
+// exactly once.
+TEST(WavFileOutputFileWriter, audio_element_writer_move_leaves_one_owner) {
+  const std::filesystem::path kOutPath =
+      std::filesystem::current_path() / "wav_moved_element_writer.wav";
+  std::filesystem::remove(kOutPath);
+  AudioElement element(juce::Uuid(), "Moved", Speakers::kStereo, 0);
+  {
+    AudioElementFileWriter source(kOutPath.string(), 48000, 24,
+                                  AudioCodec::LPCM, element);
+    ASSERT_TRUE(source.isOpen());
+    AudioElementFileWriter moved(std::move(source));
+
+    EXPECT_FALSE(source.isOpen());
+    EXPECT_TRUE(source.close());
+    EXPECT_EQ(source.getFramesWritten(), 0);
+    EXPECT_TRUE(source.getFilePath().empty());
+
+    ASSERT_TRUE(moved.isOpen());
+    EXPECT_EQ(moved.getFilePath(), kOutPath.string());
+    juce::AudioBuffer<float> buffer(2, 64);
+    buffer.clear();
+    EXPECT_TRUE(moved.write(buffer));
+    EXPECT_EQ(moved.getFramesWritten(), 64);
+  }
+  auto reader = readWav(kOutPath);
+  ASSERT_NE(reader, nullptr);
+  EXPECT_EQ(reader->lengthInSamples, 64);
+  reader.reset();
   std::filesystem::remove(kOutPath);
 }
 
