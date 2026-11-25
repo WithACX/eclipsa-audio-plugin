@@ -9,7 +9,7 @@ date: 2026-08-13
 # gh Token Lacks 'read:project' Scope for GitHub Projects V2
 
 ## Action
-Grant the GitHub token the `read:project` scope to allow board_cli.py and derived-bug sweep to query GitHub Projects V2 board status. Current token scopes: ['gist', 'read:org', 'repo', 'workflow']. Missing: 'read:project'.
+Observed: `board_cli.py list-field` fails because the token is missing a scope required for Projects v2 board queries (`read:project`), and the derived-bug sweep falls back to a label-based query. Use the label-based fallback when this happens. Any change to the token's scopes is a credential decision for whoever administers that token, raised as its own issue; this learning does not authorize it.
 
 ## Evidence
 - Observed 4 times in session 72dbefe5-1303-4214-a0a3-8a178b1574b1
@@ -17,7 +17,6 @@ Grant the GitHub token the `read:project` scope to allow board_cli.py and derive
 - Impact: `sweep_derived_bugs.py` cannot evaluate board predicate `Status == Todo`, so derived-bug sweep is unreachable
 - Workaround (used): Fall back to LABEL-based bug query instead of board status
 - Affected tools: board_cli.py (sweep_derived_bugs.py, project-management plugin)
-- Location: .git token at https://github.com/settings/tokens
 
 ## Why This Matters
-The autonomous delivery run cannot sweep open bugs by board status. It must fall back to label-based queries, losing precision on issue readiness. Once the scope is granted, sweep eligibility becomes deterministic and repeatable.
+The autonomous delivery run cannot sweep open bugs by board status. It falls back to label-based queries, losing precision on issue readiness.

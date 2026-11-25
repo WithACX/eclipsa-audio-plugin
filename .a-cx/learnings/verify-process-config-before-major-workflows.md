@@ -18,7 +18,7 @@ Before dispatching any major workflow (autonomous delivery, orchestrate, or /del
 - Root cause of [autonomous-preflight-workflow-sequence]: the first step reads docs BECAUSE the config is verified to be stable
 
 ## Common Failures
-- gh token lacks scopes (found in this session: missing 'read:project')
+- gh token is missing a scope required for Projects v2 board queries
 - .a-cx/process.yaml has disabled TDD but not documented why (repo defaults apply)
 - github.yaml tracker repo mismatches code repo (WithACX/eclipsa-audio-planning vs local WithACX/eclipsa-audio-plugin)
 - CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH unset, depth default is 3
