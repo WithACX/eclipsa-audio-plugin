@@ -273,7 +273,7 @@ void FileOutputProcessor::closeFileExport(const FileExport& config) {
     std::int64_t bytes =
         juce::File(FileExport::expandTildePath(kConfig.getExportFile()))
             .getSize();
-    if (kConfig.getExportVideo()) {
+    if (shouldMuxVideo(kConfig)) {
       bytes += juce::File(kConfig.getVideoSource()).getSize();
     }
     if (YouTubeExportLimits::check(-1.0, bytes, youTubeLimits_) != kNoError) {
@@ -283,7 +283,7 @@ void FileOutputProcessor::closeFileExport(const FileExport& config) {
   }
 
   if (kIamfExported && !youTubeStopped_ &&
-      fileExportRepository_.get().getExportVideo()) {
+      shouldMuxVideo(fileExportRepository_.get())) {
     double videoDurationSec = -1.0;
     const bool kMuxIamfSuccess = IAMFExportHelper::muxIAMF(
         fileExportRepository_.get(), &videoDurationSec);
@@ -423,7 +423,7 @@ ExportError FileOutputProcessor::checkYouTubeLimitsBeforeRender(
   }
   double videoSec = -1.0;
   std::int64_t videoBytes = 0;
-  if (config.getExportVideo()) {
+  if (shouldMuxVideo(config)) {
     videoSec =
         IAMFExportHelper::getMediaDurationSeconds(config.getVideoSource());
     videoBytes = juce::File(config.getVideoSource()).getSize();
@@ -462,6 +462,11 @@ ExportError FileOutputProcessor::checkYouTubeLimitsBeforeRender(
   }
   return YouTubeExportLimits::check(
       -1.0, videoBytes + static_cast<std::int64_t>(audioBytes), youTubeLimits_);
+}
+
+bool FileOutputProcessor::shouldMuxVideo(const FileExport& config) {
+  return config.getExportVideo() &&
+         config.getAudioFileFormat() == AudioFileFormat::IAMF;
 }
 
 void FileOutputProcessor::recordExportError(const ExportError error) {

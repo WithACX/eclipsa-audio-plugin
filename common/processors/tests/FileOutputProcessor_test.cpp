@@ -30,6 +30,7 @@
 
 #include "FileOutputTestFixture.h"
 #include "juce_cryptography/juce_cryptography.h"
+#include "processors/file_output/WavFileOutputProcessor.h"
 #include "processors/file_output/iamf_export_utils/IAMFExportUtil.h"
 #include "processors/tests/FileOutputTestUtils.h"
 #include "substream_rdr/substream_rdr_utils/Speakers.h"
@@ -697,6 +698,113 @@ TEST_F(FileOutputTests, mux_iamf_invalid_vout_path) {
   EXPECT_FALSE(std::filesystem::exists(videoOutPath));
   EXPECT_EQ(fileExportRepository.get().getExportError(),
             ExportError::kMuxFailed);
+}
+
+namespace {
+class SilentBinauralMix : public BinauralMixSource {
+ public:
+  SilentBinauralMix() { mix_.clear(); }
+  const juce::AudioBuffer<float>& getBinauralMix() const override {
+    return mix_;
+  }
+
+ private:
+  juce::AudioBuffer<float> mix_{2, 128};
+};
+}  // namespace
+
+// Only IAMF exports are muxed: a session saved with video muxing on still
+// writes each WAV format and produces no muxed video.
+TEST_F(FileOutputTests, wav_export_with_export_video_set_starts_no_mux) {
+  const juce::Uuid kAE = addAudioElement(Speakers::kStereo);
+  const juce::Uuid kMP = addMixPresentation();
+  addAudioElementsToMix(kMP, {kAE});
+  setTestExportOpts({.codec = AudioCodec::LPCM, .exportVideo = true});
+
+  RoomSetup roomSetup = roomSetupRepository.get();
+  for (const RoomLayout& kOption : speakerLayoutConfigurationOptions) {
+    if (kOption.getRoomSpeakerLayout() == Speakers::kStereo) {
+      roomSetup.setSpeakerLayout(kOption);
+    }
+  }
+  roomSetupRepository.update(roomSetup);
+
+  constexpr unsigned kFrameSize = 128;
+  const unsigned kNumChannels = totalAudioChannels(audioElementRepository);
+  const auto kSineTone = generateSineWave(440.0f, kSampleRate, kFrameSize);
+  const std::filesystem::path kWavOutPath =
+      std::filesystem::current_path() / "wav_mux_guard.wav";
+
+  for (const AudioFileFormat kFormat :
+       {AudioFileFormat::WAV, AudioFileFormat::BinauralWav}) {
+    std::filesystem::remove(kWavOutPath);
+    FileExport config = fileExportRepository.get();
+    config.setAudioFileFormat(kFormat);
+    config.setBitDepth(16);
+    config.setExportFile(kWavOutPath.string());
+    fileExportRepository.update(config);
+    ASSERT_TRUE(fileExportRepository.get().getExportVideo());
+
+    SilentBinauralMix binauralMix;
+    WavFileOutputProcessor wavProc(fileExportRepository, roomSetupRepository,
+                                   binauralMix);
+    fio_proc.prepareToPlay(kSampleRate, kFrameSize);
+    wavProc.prepareToPlay(kSampleRate, kFrameSize);
+    fio_proc.setNonRealtime(true);
+    wavProc.setNonRealtime(true);
+
+    juce::AudioBuffer<float> audioBuffer(kNumChannels, kFrameSize);
+    juce::MidiBuffer midiBuffer;
+    for (int block = 0; block < 8; ++block) {
+      for (unsigned ch = 0; ch < kNumChannels; ++ch) {
+        audioBuffer.copyFrom(ch, 0, kSineTone, 0, 0, kFrameSize);
+      }
+      fio_proc.processBlock(audioBuffer, midiBuffer);
+      wavProc.processBlock(audioBuffer, midiBuffer);
+    }
+    fio_proc.setNonRealtime(false);
+    wavProc.setNonRealtime(false);
+
+    EXPECT_TRUE(std::filesystem::exists(kWavOutPath));
+    EXPECT_FALSE(std::filesystem::exists(iamfOutPath));
+    EXPECT_FALSE(std::filesystem::exists(videoOutPath));
+    EXPECT_EQ(fileExportRepository.get().getExportError(),
+              ExportError::kNoError);
+  }
+  std::filesystem::remove(kWavOutPath);
+}
+
+// The mux decision reads the format when the export closes, so a format that
+// is no longer IAMF by then is not muxed either.
+TEST_F(FileOutputTests, mux_skipped_when_format_is_not_iamf_at_close) {
+  const juce::Uuid kAE = addAudioElement(Speakers::kStereo);
+  const juce::Uuid kMP = addMixPresentation();
+  addAudioElementsToMix(kMP, {kAE});
+  setTestExportOpts({.codec = AudioCodec::LPCM, .exportVideo = true});
+
+  constexpr unsigned kFrameSize = 128;
+  const unsigned kNumChannels = totalAudioChannels(audioElementRepository);
+  const auto kSineTone = generateSineWave(440.0f, kSampleRate, kFrameSize);
+
+  fio_proc.prepareToPlay(kSampleRate, kFrameSize);
+  fio_proc.setNonRealtime(true);
+  juce::AudioBuffer<float> audioBuffer(kNumChannels, kFrameSize);
+  juce::MidiBuffer midiBuffer;
+  for (int block = 0; block < 8; ++block) {
+    for (unsigned ch = 0; ch < kNumChannels; ++ch) {
+      audioBuffer.copyFrom(ch, 0, kSineTone, 0, 0, kFrameSize);
+    }
+    fio_proc.processBlock(audioBuffer, midiBuffer);
+  }
+
+  FileExport config = fileExportRepository.get();
+  config.setAudioFileFormat(AudioFileFormat::WAV);
+  fileExportRepository.update(config);
+  fio_proc.setNonRealtime(false);
+
+  EXPECT_TRUE(std::filesystem::exists(iamfOutPath));
+  EXPECT_FALSE(std::filesystem::exists(videoOutPath));
+  EXPECT_EQ(fileExportRepository.get().getExportError(), ExportError::kNoError);
 }
 
 // =============================================================================
