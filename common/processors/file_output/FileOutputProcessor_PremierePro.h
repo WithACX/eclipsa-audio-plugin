@@ -28,7 +28,9 @@
 #include "processors/file_output/FileOutputProcessor.h"
 
 //==============================================================================
-class PremiereProFileOutputProcessor final : public FileOutputProcessor {
+// Not `final`: tests subclass it to override the inherited createFileWriter()
+// seam.
+class PremiereProFileOutputProcessor : public FileOutputProcessor {
  public:
   //==============================================================================
   PremiereProFileOutputProcessor(

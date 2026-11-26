@@ -18,6 +18,9 @@
 #include <juce_data_structures/juce_data_structures.h>
 
 #include <filesystem>
+#include <functional>
+#include <memory>
+#include <utility>
 
 #include "../common/data_repository/implementation/AudioElementRepository.h"
 #include "../common/data_repository/implementation/FileExportRepository.h"
@@ -27,6 +30,7 @@
 #include "../common/data_structures/src/MixPresentationLoudness.h"
 #include "../common/substream_rdr/substream_rdr_utils/Speakers.h"
 #include "../file_output/FileOutputProcessor.h"
+#include "../file_output/FileWriter.h"
 #include "data_repository/implementation/FilePlaybackRepository.h"
 #include "data_repository/implementation/RoomSetupRepository.h"
 #include "data_structures/src/FileExport.h"
@@ -61,6 +65,75 @@ class TestMixPresentationLoudnessRepository
  public:
   TestMixPresentationLoudnessRepository()
       : MixPresentationLoudnessRepository(juce::ValueTree{"test"}) {}
+};
+
+// Failures a FaultInjectingProcessor's per-audio-element WAV writers report
+// after their real, successful open. Shared rather than owned by the
+// processor: PremiereProFileOutputProcessor closes its writers from its own
+// destructor, after a subclass's members are destroyed.
+struct WriterFaults {
+  bool failWrites = false;
+  bool failClose = false;
+  int writersCreated = 0;
+  int writesAttempted = 0;
+  // Runs inside the second write(), before that write reports its result.
+  std::function<void()> onSecondWrite;
+};
+
+// Opens a real file, so the open succeeds, then reports the failures
+// `faults` asks for. Production reaches these only through a full disk or
+// the WAV 4GB size cap.
+class FaultyFileWriter : public FileWriter {
+ public:
+  FaultyFileWriter(std::shared_ptr<WriterFaults> faults,
+                   const juce::String& filename, double sampleRate,
+                   const juce::AudioChannelSet& channelSet, int firstChannel,
+                   int bitDepth, AudioCodec codec)
+      : FileWriter(filename, sampleRate, channelSet, firstChannel, bitDepth,
+                   codec),
+        faults_(std::move(faults)) {}
+
+  bool write(juce::AudioBuffer<float>& buffer) override {
+    if (++faults_->writesAttempted == 2 && faults_->onSecondWrite) {
+      faults_->onSecondWrite();
+    }
+    return !faults_->failWrites && FileWriter::write(buffer);
+  }
+
+  // Releases the real file before reporting the failure, as a failed flush
+  // does.
+  bool close() override {
+    const bool kClosed = FileWriter::close();
+    return kClosed && !faults_->failClose;
+  }
+
+ private:
+  std::shared_ptr<WriterFaults> faults_;
+};
+
+// Substitutes FaultyFileWriter for every per-audio-element WAV writer that
+// `Processor` creates.
+template <typename Processor>
+class FaultInjectingProcessor : public Processor {
+ public:
+  template <typename... Args>
+  explicit FaultInjectingProcessor(std::shared_ptr<WriterFaults> faults,
+                                   Args&&... args)
+      : Processor(std::forward<Args>(args)...), faults_(std::move(faults)) {}
+
+ protected:
+  std::unique_ptr<FileWriter> createFileWriter(
+      const juce::String& filename, double sampleRate,
+      const juce::AudioChannelSet& channelSet, int firstChannel, int bitDepth,
+      AudioCodec codec) override {
+    ++faults_->writersCreated;
+    return std::make_unique<FaultyFileWriter>(faults_, filename, sampleRate,
+                                              channelSet, firstChannel,
+                                              bitDepth, codec);
+  }
+
+ private:
+  std::shared_ptr<WriterFaults> faults_;
 };
 
 class FileOutputTests : public ::testing::Test {
