@@ -299,7 +299,13 @@ TEST_F(FileOutputTests,
 
   auto faults = std::make_shared<WriterFaults>();
   faults->failWrites = true;
-  ExportErrorChangeCounter counter(fileExportRepository);
+  // A per-block rewrite would replace this sentinel with kFileWriteFailed;
+  // first-error-wins leaves it in place.
+  faults->onSecondWrite = [this] {
+    FileExport config = fileExportRepository.get();
+    config.setExportError(ExportError::kMuxFailed);
+    fileExportRepository.update(config);
+  };
 
   constexpr unsigned kNumBlocks = 8;
   bounceFaultyPremiereProAudio(
@@ -308,9 +314,8 @@ TEST_F(FileOutputTests,
 
   EXPECT_EQ(faults->writersCreated, 1);
   EXPECT_EQ(faults->writesAttempted, static_cast<int>(kNumBlocks));
-  EXPECT_EQ(counter.count, 1);
   EXPECT_EQ(fileExportRepository.get().getExportError(),
-            ExportError::kFileWriteFailed);
+            ExportError::kMuxFailed);
 }
 
 // A Premiere Pro export whose per-audio-element WAV writer opens and writes

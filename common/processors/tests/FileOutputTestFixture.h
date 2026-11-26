@@ -18,6 +18,7 @@
 #include <juce_data_structures/juce_data_structures.h>
 
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <utility>
 
@@ -75,6 +76,8 @@ struct WriterFaults {
   bool failClose = false;
   int writersCreated = 0;
   int writesAttempted = 0;
+  // Runs inside the second write(), before that write reports its result.
+  std::function<void()> onSecondWrite;
 };
 
 // Opens a real file, so the open succeeds, then reports the failures
@@ -91,7 +94,9 @@ class FaultyFileWriter : public FileWriter {
         faults_(std::move(faults)) {}
 
   bool write(juce::AudioBuffer<float>& buffer) override {
-    ++faults_->writesAttempted;
+    if (++faults_->writesAttempted == 2 && faults_->onSecondWrite) {
+      faults_->onSecondWrite();
+    }
     return !faults_->failWrites && FileWriter::write(buffer);
   }
 
@@ -131,8 +136,9 @@ class FaultInjectingProcessor : public Processor {
   std::shared_ptr<WriterFaults> faults_;
 };
 
-// Counts every change to the stored export error, so a test can tell one
-// recorded error from the same error written again on every block.
+// Counts changes to the stored export error. JUCE sends no change message
+// when a property is set to the value it already holds, so this cannot tell
+// one recorded error from the same error written again on every block.
 class ExportErrorChangeCounter : public juce::ValueTree::Listener {
  public:
   explicit ExportErrorChangeCounter(FileExportRepository& repo) : repo_(repo) {

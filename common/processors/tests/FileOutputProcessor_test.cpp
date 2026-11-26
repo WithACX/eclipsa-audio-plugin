@@ -998,19 +998,24 @@ TEST_F(FileOutputTests,
 
   auto faults = std::make_shared<WriterFaults>();
   faults->failWrites = true;
+  // A per-block rewrite would replace this sentinel with kFileWriteFailed;
+  // first-error-wins leaves it in place.
+  faults->onSecondWrite = [this] {
+    FileExport config = fileExportRepository.get();
+    config.setExportError(ExportError::kMuxFailed);
+    fileExportRepository.update(config);
+  };
   FaultInjectingProcessor<FileOutputProcessor> proc(
       faults, fileExportRepository, fpbr, audioElementRepository, mixRepository,
       mixPresentationLoudnessRepository, roomSetupRepository);
-  ExportErrorChangeCounter counter(fileExportRepository);
 
   constexpr unsigned kNumBlocks = 8;
   bounceAudio(proc, audioElementRepository, 48000, 128, kNumBlocks);
 
   EXPECT_EQ(faults->writersCreated, 1);
   EXPECT_EQ(faults->writesAttempted, static_cast<int>(kNumBlocks));
-  EXPECT_EQ(counter.count, 1);
   EXPECT_EQ(fileExportRepository.get().getExportError(),
-            ExportError::kFileWriteFailed);
+            ExportError::kMuxFailed);
 }
 
 // A per-audio-element WAV writer that opens and writes successfully but fails
