@@ -126,7 +126,7 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
                                 juce::NotificationType::dontSendNotification);
   exportPathErrorLabel_.setVisible(false);
   exportPathErrorLabel_.setMinimumHorizontalScale(1.0f);
-  addAndMakeVisible(exportPathErrorLabel_);
+  content_.addAndMakeVisible(exportPathErrorLabel_);
 
   // Configure export video folder error label
   exportVideoFolderErrorLabel_.setColour(juce::Label::ColourIds::textColourId,
@@ -138,7 +138,7 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
       "", juce::NotificationType::dontSendNotification);
   exportVideoFolderErrorLabel_.setVisible(false);
   exportVideoFolderErrorLabel_.setMinimumHorizontalScale(1.0f);
-  addAndMakeVisible(exportVideoFolderErrorLabel_);
+  content_.addAndMakeVisible(exportVideoFolderErrorLabel_);
 
   // Configure video source error label (file must exist)
   videoSourceErrorLabel_.setColour(juce::Label::ColourIds::textColourId,
@@ -149,7 +149,7 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
                                  juce::NotificationType::dontSendNotification);
   videoSourceErrorLabel_.setVisible(false);
   videoSourceErrorLabel_.setMinimumHorizontalScale(1.0f);
-  addAndMakeVisible(videoSourceErrorLabel_);
+  content_.addAndMakeVisible(videoSourceErrorLabel_);
 
   // Set the error labels
   startTimerErrorLabel_.setText("",
@@ -604,12 +604,16 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
   };
   LOG_ANALYTICS(RendererProcessor::instanceId_, "FileExportScreen initiated.");
 
+  addAndMakeVisible(headerBar_);
+  viewport_.setViewedComponent(&content_, false);
+  addAndMakeVisible(viewport_);
+
   // Redraw the non-configurable components
   refreshComponents();
 
-  addAndMakeVisible(exportValidation_);
+  content_.addAndMakeVisible(exportValidation_);
 
-  addAndMakeVisible(warningLabel_);
+  content_.addAndMakeVisible(warningLabel_);
   warningLabel_.setColour(juce::Label::ColourIds::textColourId,
                           EclipsaColours::red);
   refreshFileExportComponents();
@@ -622,22 +626,32 @@ FileExportScreen::~FileExportScreen() {
   repository_->deregisterListener(this);
 }
 
-void FileExportScreen::paint(juce::Graphics& g) {
+void FileExportScreen::resized() { updateLayout(); }
+
+void FileExportScreen::handleAsyncUpdate() { updateLayout(); }
+
+void FileExportScreen::updateLayout() {
   auto bounds = getLocalBounds();
-  /*
-   * ==============================
-   * Draw in the title bar row
-   *===============================
-   */
-  auto titleBarBounds = bounds.removeFromTop(45);
-  addAndMakeVisible(headerBar_);
-  headerBar_.setBounds(titleBarBounds);
+  headerBar_.setBounds(bounds.removeFromTop(kHeaderHeight));
+  viewport_.setBounds(bounds);
 
-  // Add some padding
-  bounds.removeFromTop(25);
+  // Measure in an unconstrained area first: laying out directly into a short
+  // area would clamp the lower rows to zero height instead of overflowing.
+  const int requiredHeight =
+      layoutContent({0, 0, kMinContentWidth, kMeasureHeight});
 
-  int mainColumnPadding = 50;
-  int mainColumnWidth = 400;
+  // Showing one scrollbar can shrink the visible area enough to need the
+  // other, so size the content against the visible area twice.
+  for (int pass = 0; pass < 2; ++pass) {
+    content_.setSize(
+        juce::jmax(kMinContentWidth, viewport_.getMaximumVisibleWidth()),
+        juce::jmax(requiredHeight, viewport_.getMaximumVisibleHeight()));
+  }
+  layoutContent(content_.getLocalBounds());
+}
+
+int FileExportScreen::layoutContent(juce::Rectangle<int> bounds) {
+  bounds.removeFromTop(kContentTopPadding);
 
   /* ================================
    *  Draw in the Export Parameters content
@@ -647,94 +661,94 @@ void FileExportScreen::paint(juce::Graphics& g) {
   int rowPadding = 25;
   int columnPadding = 25;
   int componentWidth = 175;
-  auto leftSideBounds = bounds.removeFromLeft(mainColumnWidth);
+  auto leftSideBounds = bounds.removeFromLeft(kMainColumnWidth);
   leftSideBounds.removeFromLeft(30);
 
   // Draw in the title label
   auto row = leftSideBounds.removeFromTop(rowHeight);
-  addAndMakeVisible(exportParametersLabel_);
+  content_.addAndMakeVisible(exportParametersLabel_);
   exportParametersLabel_.setBounds(row);
 
   // Start time column (time box + selector + label as one unit)
   auto startColumn = leftSideBounds.removeFromTop(135);
   auto startColumnLeft = startColumn.removeFromLeft(componentWidth);
   // Draw in the start and end row
-  addAndMakeVisible(startTimer_);
+  content_.addAndMakeVisible(startTimer_);
   startTimer_.setBounds(row.removeFromLeft(componentWidth));
   row.removeFromLeft(rowPadding);
-  addAndMakeVisible(endTimer_);
+  content_.addAndMakeVisible(endTimer_);
   endTimer_.setBounds(row.removeFromLeft(componentWidth));
 
-  addAndMakeVisible(startTimer_);
+  content_.addAndMakeVisible(startTimer_);
   startTimer_.setBounds(startColumnLeft.removeFromTop(rowHeight));
 
   startColumnLeft.removeFromTop(2);
   const int formatSelectorHeight = 32;  // Half of text box height
-  addAndMakeVisible(startFormatSegments_);
+  content_.addAndMakeVisible(startFormatSegments_);
   startFormatSegments_.setBounds(
       startColumnLeft.removeFromTop(formatSelectorHeight));
 
   startColumnLeft.removeFromTop(2);
-  addAndMakeVisible(startTimeFormatLabel_);
+  content_.addAndMakeVisible(startTimeFormatLabel_);
   startTimeFormatLabel_.setBounds(startColumnLeft.removeFromTop(15));
 
   startColumnLeft.removeFromTop(2);
-  addAndMakeVisible(startTimerErrorLabel_);
+  content_.addAndMakeVisible(startTimerErrorLabel_);
   startTimerErrorLabel_.setBounds(startColumnLeft);
 
   startColumn.removeFromLeft(rowPadding);
   auto endColumnLeft = startColumn.removeFromLeft(componentWidth);
 
-  addAndMakeVisible(endTimer_);
+  content_.addAndMakeVisible(endTimer_);
   endTimer_.setBounds(endColumnLeft.removeFromTop(rowHeight));
 
   endColumnLeft.removeFromTop(2);
-  addAndMakeVisible(endFormatSegments_);
+  content_.addAndMakeVisible(endFormatSegments_);
   endFormatSegments_.setBounds(
       endColumnLeft.removeFromTop(formatSelectorHeight));
 
   endColumnLeft.removeFromTop(2);
-  addAndMakeVisible(endTimeFormatLabel_);
+  content_.addAndMakeVisible(endTimeFormatLabel_);
   endTimeFormatLabel_.setBounds(endColumnLeft.removeFromTop(15));
 
   endColumnLeft.removeFromTop(2);
-  addAndMakeVisible(endTimerErrorLabel_);
+  content_.addAndMakeVisible(endTimerErrorLabel_);
   endTimerErrorLabel_.setBounds(endColumnLeft);
 
   // Draw in the format and codec row
   row = leftSideBounds.removeFromTop(rowHeight);
-  addAndMakeVisible(formatSelector_);
+  content_.addAndMakeVisible(formatSelector_);
   formatSelector_.setBounds(row.removeFromLeft(componentWidth));
   row.removeFromLeft(rowPadding);
-  addAndMakeVisible(codecSelector_);
+  content_.addAndMakeVisible(codecSelector_);
   codecSelector_.setBounds(row.removeFromLeft(componentWidth));
 
   // Draw in the bit depth and sample rate row
   leftSideBounds.removeFromTop(rowPadding / 2);
   row = leftSideBounds.removeFromTop(rowHeight);
-  addAndMakeVisible(bitDepthSelector_);
+  content_.addAndMakeVisible(bitDepthSelector_);
   bitDepthSelector_.setBounds(row.removeFromLeft(componentWidth));
   row.removeFromLeft(rowPadding);
-  addAndMakeVisible(sampleRate_);
+  content_.addAndMakeVisible(sampleRate_);
   sampleRate_.setBounds(row.removeFromLeft(componentWidth));
 
   // Draw in the custom codec parameter
   leftSideBounds.removeFromTop(rowPadding / 2);
   row = leftSideBounds.removeFromTop(rowHeight);
-  addAndMakeVisible(customCodecParameter_);
+  content_.addAndMakeVisible(customCodecParameter_);
   customCodecParameter_.setBounds(row.removeFromLeft(componentWidth));
 
   // Draw in the custom codec parameter error label
   row = leftSideBounds.removeFromTop(rowPadding / 2);
-  addAndMakeVisible(customCodecParameterErrorLabel_);
+  content_.addAndMakeVisible(customCodecParameterErrorLabel_);
   customCodecParameterErrorLabel_.setBounds(row.removeFromLeft(componentWidth));
 
   // Draw in the mix presentation and Audio Elements row
   row = leftSideBounds.removeFromTop(rowHeight);
-  addAndMakeVisible(mixPresentations_);
+  content_.addAndMakeVisible(mixPresentations_);
   mixPresentations_.setBounds(row.removeFromLeft(componentWidth));
   row.removeFromLeft(rowPadding);
-  addAndMakeVisible(audioElements_);
+  content_.addAndMakeVisible(audioElements_);
   audioElements_.setBounds(row.removeFromLeft(componentWidth));
 
   /* ==============================================
@@ -747,20 +761,20 @@ void FileExportScreen::paint(juce::Graphics& g) {
   componentWidth = 350;
 
   // Add some padding
-  bounds.removeFromLeft(mainColumnPadding);
-  auto rightSideBounds = bounds.removeFromLeft(mainColumnWidth);
+  bounds.removeFromLeft(kMainColumnPadding);
+  auto rightSideBounds = bounds.removeFromLeft(kMainColumnWidth);
 
   // Add the export audio components
   row = rightSideBounds.removeFromTop(rowHeight);
-  addAndMakeVisible(exportAudioLabel_);
+  content_.addAndMakeVisible(exportAudioLabel_);
   exportAudioLabel_.setBounds(row.removeFromLeft(150));
-  addAndMakeVisible(enableFileExport_);
+  content_.addAndMakeVisible(enableFileExport_);
   enableFileExport_.setBounds(row.removeFromLeft(85).reduced(15));
 
   row = rightSideBounds.removeFromTop(rowHeight);
-  addAndMakeVisible(exportPath_);
+  content_.addAndMakeVisible(exportPath_);
   exportPath_.setBounds(row.removeFromLeft(componentWidth));
-  addAndMakeVisible(browseButton_);
+  content_.addAndMakeVisible(browseButton_);
   browseButton_.setBounds(
       row.removeFromLeft(75).withTrimmedTop(10).reduced(15));
 
@@ -770,24 +784,24 @@ void FileExportScreen::paint(juce::Graphics& g) {
   exportPathErrorLabel_.setBounds(errorRow.removeFromLeft(componentWidth));
 
   row = rightSideBounds.removeFromTop(rowHeight - 20);
-  addAndMakeVisible(exportAudioElementsToggle_);
+  content_.addAndMakeVisible(exportAudioElementsToggle_);
   exportAudioElementsToggle_.setBounds(row.removeFromLeft(50));
-  addAndMakeVisible(exportAudioElementsLabel_);
+  content_.addAndMakeVisible(exportAudioElementsLabel_);
   exportAudioElementsLabel_.setBounds(row.removeFromLeft(componentWidth));
 
   // Only draw video export options if the audio export is enabled.
   if (enableFileExport_.getToggleState()) {
     // Add the mux video components
     row = rightSideBounds.removeFromTop(rowHeight);
-    addAndMakeVisible(muxVidoeLabel_);
+    content_.addAndMakeVisible(muxVidoeLabel_);
     muxVidoeLabel_.setBounds(row.removeFromLeft(130));
-    addAndMakeVisible(muxVideoToggle_);
+    content_.addAndMakeVisible(muxVideoToggle_);
     muxVideoToggle_.setBounds(row.removeFromLeft(85).reduced(15));
 
     row = rightSideBounds.removeFromTop(rowHeight);
-    addAndMakeVisible(videoSource_);
+    content_.addAndMakeVisible(videoSource_);
     videoSource_.setBounds(row.removeFromLeft(componentWidth));
-    addAndMakeVisible(browseVideoSourceButton_);
+    content_.addAndMakeVisible(browseVideoSourceButton_);
     browseVideoSourceButton_.setBounds(
         row.removeFromLeft(75).withTrimmedTop(10).reduced(15));
 
@@ -798,9 +812,9 @@ void FileExportScreen::paint(juce::Graphics& g) {
         videoSourceErrRow.removeFromLeft(componentWidth));
 
     row = rightSideBounds.removeFromTop(rowHeight);
-    addAndMakeVisible(exportVideoFolder_);
+    content_.addAndMakeVisible(exportVideoFolder_);
     exportVideoFolder_.setBounds(row.removeFromLeft(componentWidth));
-    addAndMakeVisible(browseVideoButton_);
+    content_.addAndMakeVisible(browseVideoButton_);
     browseVideoButton_.setBounds(
         row.removeFromLeft(75).withTrimmedTop(10).reduced(15));
 
@@ -826,7 +840,7 @@ void FileExportScreen::paint(juce::Graphics& g) {
     rightSideBounds.removeFromTop(columnPadding);
     row = rightSideBounds.removeFromTop(rowHeight * 0.75f);
     const auto rowReference = row;
-    addAndMakeVisible(exportButton_);
+    content_.addAndMakeVisible(exportButton_);
     exportButton_.setBounds(row.removeFromLeft(125));
     auto labelBounds = rowReference;
     labelBounds.removeFromLeft(exportButton_.getWidth());
@@ -835,7 +849,7 @@ void FileExportScreen::paint(juce::Graphics& g) {
 #if JUCE_DEBUG
     rightSideBounds.removeFromTop(columnPadding);
     row = rightSideBounds.removeFromTop(rowHeight);
-    addAndMakeVisible(exportButton_);
+    content_.addAndMakeVisible(exportButton_);
     exportButton_.setBounds(row.removeFromLeft(200));
 #endif
   }
@@ -845,10 +859,13 @@ void FileExportScreen::paint(juce::Graphics& g) {
    * ==============================================
    */
 
-  bounds.removeFromLeft(mainColumnPadding);
-  auto validationBounds = bounds.removeFromLeft(mainColumnWidth);
+  bounds.removeFromLeft(kMainColumnPadding);
+  auto validationBounds = bounds.removeFromLeft(kMainColumnWidth);
   exportValidation_.setBounds(validationBounds);
-};
+
+  return juce::jmax(leftSideBounds.getY(), rightSideBounds.getY()) +
+         kContentBottomPadding;
+}
 
 juce::String FileExportScreen::timeToString(juce::int64 sampleCount,
                                             TimeFormat format) {
@@ -1116,7 +1133,9 @@ void FileExportScreen::refreshFileExportComponents() {
                             EclipsaColours::green);
   }
 
-  repaint();
+  // Listeners can fire off the message thread (processors update this
+  // repository), so the layout change is deferred to the message thread.
+  triggerAsyncUpdate();
 }
 
 void FileExportScreen::updateMuxVideoAvailability(
