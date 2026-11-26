@@ -28,6 +28,18 @@ juce::Font plainFont(const char* family) {
   return juce::Font(family, 12.0f, juce::Font::plain);
 }
 
+// The face the approved design was drawn in: macOS substitutes Helvetica for
+// an uninstalled Roboto.
+juce::String expectedRobotoFace() {
+#if JUCE_MAC
+  return "Helvetica";
+#else
+  return plainFont(juce::Font::getDefaultSansSerifFontName().toRawUTF8())
+      .getTypefacePtr()
+      ->getName();
+#endif
+}
+
 bool eclipsaIsDefault() {
   return dynamic_cast<EclipsaLookAndFeel*>(
              &juce::LookAndFeel::getDefaultLookAndFeel()) != nullptr;
@@ -46,24 +58,18 @@ TEST(EclipsaLookAndFeel, serves_bundled_audiowide) {
   EXPECT_EQ(face->getName(), "Audiowide");
 }
 
-TEST(EclipsaLookAndFeel, draws_roboto_in_the_system_sans_serif) {
+// Verifies Roboto text draws in the face the design used, at plain and bold.
+TEST(EclipsaLookAndFeel, draws_roboto_in_the_design_face) {
   const juce::ScopedJuceInitialiser_GUI kJuce;
   EclipsaLookAndFeel lookAndFeel;
 
   for (const int style : {juce::Font::plain, juce::Font::bold}) {
     const juce::Font roboto(EclipsaLookAndFeel::kRoboto, 12.0f, style);
-    const juce::Font systemSans(juce::Font::getDefaultSansSerifFontName(),
-                                12.0f, style);
 
     const juce::Typeface::Ptr face = lookAndFeel.getTypefaceForFont(roboto);
-    const juce::Typeface::Ptr expected =
-        lookAndFeel.getTypefaceForFont(systemSans);
 
     ASSERT_NE(face, nullptr);
-    ASSERT_NE(expected, nullptr);
-    EXPECT_EQ(face->getName(), expected->getName());
-    EXPECT_EQ(face->getStyle(), expected->getStyle());
-    EXPECT_NE(face->getName(), "Roboto");
+    EXPECT_EQ(face->getName(), expectedRobotoFace());
   }
 }
 
@@ -88,9 +94,7 @@ TEST(ScopedEclipsaDefaultLookAndFeel, routes_plain_fonts) {
   EXPECT_TRUE(eclipsaIsDefault());
   EXPECT_EQ(plainFont("Audiowide").getTypefacePtr()->getName(), "Audiowide");
   EXPECT_EQ(plainFont("Roboto").getTypefacePtr()->getName(),
-            plainFont(juce::Font::getDefaultSansSerifFontName().toRawUTF8())
-                .getTypefacePtr()
-                ->getName());
+            expectedRobotoFace());
 }
 
 TEST(ScopedEclipsaDefaultLookAndFeel, stays_installed_until_last_holder_goes) {

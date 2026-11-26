@@ -16,6 +16,16 @@
 
 #include "EclipsaFonts.h"
 
+juce::String EclipsaLookAndFeel::robotoSubstituteName() {
+#if JUCE_MAC
+  // macOS draws an uninstalled Roboto in Helvetica, the face the approved
+  // design shows; JUCE's own default sans-serif there is Lucida Grande.
+  return "Helvetica";
+#else
+  return juce::Font::getDefaultSansSerifFontName();
+#endif
+}
+
 EclipsaLookAndFeel::EclipsaLookAndFeel()
     : audiowide_(juce::Typeface::createSystemTypefaceFor(
           EclipsaFonts::AudiowideRegular_ttf,
@@ -27,12 +37,12 @@ juce::Typeface::Ptr EclipsaLookAndFeel::getTypefaceForFont(
   if (family == kAudiowide && audiowide_ != nullptr) {
     return audiowide_;
   }
-  // The approved design was drawn with Roboto absent, so in the system
-  // sans-serif; that face is kept rather than the bundled Roboto.
+  // The approved design was drawn with Roboto absent, so Roboto requests get
+  // the face the system substitutes for it rather than the bundled Roboto.
   if (family == kRoboto) {
-    juce::Font systemSans(font);
-    systemSans.setTypefaceName(juce::Font::getDefaultSansSerifFontName());
-    return juce::LookAndFeel_V4::getTypefaceForFont(systemSans);
+    juce::Font substitute(font);
+    substitute.setTypefaceName(robotoSubstituteName());
+    return juce::LookAndFeel_V4::getTypefaceForFont(substitute);
   }
   return juce::LookAndFeel_V4::getTypefaceForFont(font);
 }

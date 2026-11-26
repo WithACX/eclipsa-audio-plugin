@@ -19,11 +19,14 @@
 // Serves the Audiowide typeface compiled into the plugin, so a juce::Font that
 // names it renders in Audiowide whether or not the font is installed; every
 // weight and style maps to the one bundled face. A font that names Roboto
-// renders in the system sans-serif at its own size and style.
+// renders in robotoSubstituteName() at its own size and style.
 class EclipsaLookAndFeel final : public juce::LookAndFeel_V4 {
  public:
   static constexpr const char* kAudiowide = "Audiowide";
   static constexpr const char* kRoboto = "Roboto";
+
+  // The family the system draws when Roboto is not installed.
+  static juce::String robotoSubstituteName();
 
   EclipsaLookAndFeel();
 
