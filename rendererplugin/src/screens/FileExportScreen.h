@@ -37,7 +37,8 @@ enum class TimeFormat {
 };
 
 class FileExportScreen : public juce::Component,
-                         public juce::ValueTree::Listener {
+                         public juce::ValueTree::Listener,
+                         private juce::AsyncUpdater {
  public:
   FileExportScreen(MainEditor& editor, RepositoryCollection repos,
                    FilePlaybackProcessorData& fpbData);
@@ -48,7 +49,7 @@ class FileExportScreen : public juce::Component,
 
   void refreshFileExportComponents();
 
-  void paint(juce::Graphics& g);
+  void resized() override;
 
   void valueTreeRedirected(juce::ValueTree& treeWhichHasBeenChanged) override;
   void valueTreePropertyChanged(juce::ValueTree& treeWhosePropertyHasChanged,
@@ -60,6 +61,26 @@ class FileExportScreen : public juce::Component,
                              int indexFromWhichChildWasRemoved) override;
 
  private:
+  // Three fixed-width columns: export parameters, export audio, validation.
+  static constexpr int kMainColumnWidth = 400;
+  static constexpr int kMainColumnPadding = 50;
+  static constexpr int kMinContentWidth =
+      3 * kMainColumnWidth + 2 * kMainColumnPadding;
+  static constexpr int kHeaderHeight = 45;
+  static constexpr int kContentTopPadding = 25;
+  static constexpr int kContentBottomPadding = 25;
+  static constexpr int kMeasureHeight = 100000;
+
+  void handleAsyncUpdate() override;
+
+  // The header stays pinned; everything below it scrolls inside viewport_ so
+  // no export control is clipped when the editor is smaller than the content.
+  void updateLayout();
+
+  // Lays the export controls out in `bounds` (content_ coordinates) and
+  // returns the height they need.
+  int layoutContent(juce::Rectangle<int> bounds);
+
   void configureCustomCodecParameter(AudioCodec format);
 
   // Time format conversion methods
@@ -94,6 +115,8 @@ class FileExportScreen : public juce::Component,
    */
 
   HeaderBar headerBar_;
+  juce::Viewport viewport_;
+  juce::Component content_;
 
   // Left side elements - Time inputs (use TitledTextBox like other fields)
   juce::Label exportParametersLabel_;
