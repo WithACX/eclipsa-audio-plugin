@@ -17,10 +17,13 @@
 #include "EclipsaFonts.h"
 
 juce::String EclipsaLookAndFeel::robotoSubstituteName() {
-#if JUCE_MAC
   // macOS draws an uninstalled Roboto in Helvetica, the face the approved
-  // design shows; JUCE's own default sans-serif there is Lucida Grande.
+  // design shows. Windows ships no Helvetica, so it gets Arial, which shares
+  // Helvetica's widths and keeps layouts identical.
+#if JUCE_MAC
   return "Helvetica";
+#elif JUCE_WINDOWS
+  return "Arial";
 #else
   return juce::Font::getDefaultSansSerifFontName();
 #endif

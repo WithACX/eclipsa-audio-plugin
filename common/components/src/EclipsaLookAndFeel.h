@@ -25,7 +25,7 @@ class EclipsaLookAndFeel final : public juce::LookAndFeel_V4 {
   static constexpr const char* kAudiowide = "Audiowide";
   static constexpr const char* kRoboto = "Roboto";
 
-  // The family the system draws when Roboto is not installed.
+  // The family Roboto text draws in: Helvetica on macOS, Arial on Windows.
   static juce::String robotoSubstituteName();
 
   EclipsaLookAndFeel();

@@ -28,11 +28,13 @@ juce::Font plainFont(const char* family) {
   return juce::Font(family, 12.0f, juce::Font::plain);
 }
 
-// The face the approved design was drawn in: macOS substitutes Helvetica for
-// an uninstalled Roboto.
+// The face the approved design was drawn in: Helvetica on macOS, and Arial,
+// which shares its widths, on Windows.
 juce::String expectedRobotoFace() {
 #if JUCE_MAC
   return "Helvetica";
+#elif JUCE_WINDOWS
+  return "Arial";
 #else
   return plainFont(juce::Font::getDefaultSansSerifFontName().toRawUTF8())
       .getTypefacePtr()
