@@ -88,6 +88,9 @@ class AudioElementPluginEditor final : public juce::AudioProcessorEditor,
   }
 
  private:
+  // First member, so the bundled fonts are the default before any child
+  // component measures text.
+  ScopedEclipsaDefaultLookAndFeel defaultLookAndFeel_;
   RoomLayout layout_;
   CustomLookAndFeel customLookAndFeel_;
 
