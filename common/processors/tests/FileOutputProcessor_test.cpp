@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <memory>
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -985,6 +986,53 @@ TEST_F(FileOutputTests, per_element_wav_all_writers_succeed_no_error) {
 
   EXPECT_TRUE(std::filesystem::exists(iamfOutPath));
   EXPECT_EQ(fileExportRepository.get().getExportError(), ExportError::kNoError);
+}
+
+// A per-audio-element WAV write that fails after a successful open is
+// recorded once as kFileWriteFailed, not rewritten on every failing block.
+TEST_F(FileOutputTests,
+       per_element_wav_write_failure_after_open_recorded_once) {
+  const juce::Uuid kAE = addAudioElement(Speakers::kStereo);
+  const juce::Uuid kMP = addMixPresentation();
+  addAudioElementsToMix(kMP, {kAE});
+
+  auto faults = std::make_shared<WriterFaults>();
+  faults->failWrites = true;
+  FaultInjectingProcessor<FileOutputProcessor> proc(
+      faults, fileExportRepository, fpbr, audioElementRepository, mixRepository,
+      mixPresentationLoudnessRepository, roomSetupRepository);
+  ExportErrorChangeCounter counter(fileExportRepository);
+
+  constexpr unsigned kNumBlocks = 8;
+  bounceAudio(proc, audioElementRepository, 48000, 128, kNumBlocks);
+
+  EXPECT_EQ(faults->writersCreated, 1);
+  EXPECT_EQ(faults->writesAttempted, static_cast<int>(kNumBlocks));
+  EXPECT_EQ(counter.count, 1);
+  EXPECT_EQ(fileExportRepository.get().getExportError(),
+            ExportError::kFileWriteFailed);
+}
+
+// A per-audio-element WAV writer that opens and writes successfully but fails
+// to close is recorded as kFileWriteFailed.
+TEST_F(FileOutputTests, per_element_wav_close_failure_after_writes_recorded) {
+  const juce::Uuid kAE = addAudioElement(Speakers::kStereo);
+  const juce::Uuid kMP = addMixPresentation();
+  addAudioElementsToMix(kMP, {kAE});
+
+  auto faults = std::make_shared<WriterFaults>();
+  faults->failClose = true;
+  FaultInjectingProcessor<FileOutputProcessor> proc(
+      faults, fileExportRepository, fpbr, audioElementRepository, mixRepository,
+      mixPresentationLoudnessRepository, roomSetupRepository);
+
+  constexpr unsigned kNumBlocks = 8;
+  bounceAudio(proc, audioElementRepository, 48000, 128, kNumBlocks);
+
+  EXPECT_EQ(faults->writersCreated, 1);
+  EXPECT_EQ(faults->writesAttempted, static_cast<int>(kNumBlocks));
+  EXPECT_EQ(fileExportRepository.get().getExportError(),
+            ExportError::kFileWriteFailed);
 }
 
 namespace {

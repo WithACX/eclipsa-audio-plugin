@@ -20,19 +20,18 @@
 
 #include <memory>
 #include <string>
+#include <utility>
 
 #include "FileWriter.h"
 #include "data_structures/src/AudioElement.h"
 
 class AudioElementFileWriter {
  public:
-  AudioElementFileWriter(const juce::String& filename, double sampleRate,
-                         int bitDepth, AudioCodec codec, AudioElement& element)
-      : element_(element),
-        fileWriter_(std::make_unique<FileWriter>(
-            filename, sampleRate,
-            FileWriter::defaultWavChannelSet(element.getChannelCount()),
-            element.getFirstChannel(), bitDepth, codec)) {}
+  // `fileWriter` must read `element`'s channels; FileOutputProcessor builds
+  // it through its createFileWriter() seam.
+  AudioElementFileWriter(const AudioElement& element,
+                         std::unique_ptr<FileWriter> fileWriter)
+      : element_(element), fileWriter_(std::move(fileWriter)) {}
 
   ~AudioElementFileWriter() { close(); }
 

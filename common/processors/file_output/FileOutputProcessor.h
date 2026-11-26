@@ -32,6 +32,7 @@
 #include "../processor_base/ProcessorBase.h"
 #include "AudioElementFileWriter.h"
 #include "FilePermissions.h"
+#include "FileWriter.h"
 #include "data_repository/implementation/FilePlaybackRepository.h"
 #include "data_repository/implementation/MixPresentationLoudnessRepository.h"
 #include "data_repository/implementation/RoomSetupRepository.h"
@@ -81,6 +82,18 @@ class FileOutputProcessor : public ProcessorBase {
           return juce::String(value, decimalPlaces, false);
         })
         .withLabel(label);
+  }
+
+  // Builds each per-audio-element WAV writer. Virtual so tests can return a
+  // writer whose write()/close() fail after a real, successful open -- the
+  // disk-full and WAV 4GB cap failures that production reaches are not
+  // practical to provoke in a unit test.
+  virtual std::unique_ptr<FileWriter> createFileWriter(
+      const juce::String& filename, double sampleRate,
+      const juce::AudioChannelSet& channelSet, int firstChannel, int bitDepth,
+      AudioCodec codec) {
+    return std::make_unique<FileWriter>(filename, sampleRate, channelSet,
+                                        firstChannel, bitDepth, codec);
   }
 
   void initializeFileExport(FileExport& config);

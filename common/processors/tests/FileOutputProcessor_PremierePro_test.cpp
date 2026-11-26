@@ -15,11 +15,54 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <memory>
 
 #include "FileOutputTestFixture.h"
 #include "juce_cryptography/juce_cryptography.h"
 #include "processors/tests/FileOutputTestUtils.h"
 #include "substream_rdr/substream_rdr_utils/Speakers.h"
+
+namespace {
+// Runs a Premiere Pro bounce the way bouncePremiereProAudio does, with
+// `faults` applied to its per-audio-element WAV writers. The processor is
+// destroyed, and so closes the export, before this returns.
+void bounceFaultyPremiereProAudio(
+    const std::shared_ptr<WriterFaults>& faults,
+    FileExportRepository& fileExportRepository,
+    FilePlaybackRepository& filePlaybackRepository,
+    AudioElementRepository& audioElementRepository,
+    MixPresentationRepository& mixPresentationRepository,
+    MixPresentationLoudnessRepository& mixPresentationLoudnessRepository,
+    RoomSetupRepository& roomSetupRepository, unsigned numBlocks) {
+  constexpr unsigned kSampleRate = 48000;
+  constexpr unsigned kFrameSize = 128;
+
+  FileExport fileExport = fileExportRepository.get();
+  fileExport.setManualExport(true);
+  fileExportRepository.update(fileExport);
+
+  FaultInjectingProcessor<PremiereProFileOutputProcessor> proc(
+      faults, fileExportRepository, filePlaybackRepository,
+      audioElementRepository, mixPresentationRepository,
+      mixPresentationLoudnessRepository, roomSetupRepository);
+
+  const unsigned kNumChannels = totalAudioChannels(audioElementRepository);
+  const auto kSineTone = generateSineWave(440.0f, kSampleRate, kFrameSize);
+
+  proc.prepareToPlay(kSampleRate, kFrameSize);
+  proc.setNonRealtime(true);
+
+  juce::AudioBuffer<float> audioBuffer(kNumChannels, kFrameSize);
+  juce::MidiBuffer midiBuffer;
+  for (unsigned block = 0; block < numBlocks; ++block) {
+    for (unsigned i = 0; i < kNumChannels; ++i) {
+      audioBuffer.copyFrom(i, 0, kSineTone, 0, 0, kFrameSize);
+    }
+    proc.processBlock(audioBuffer, midiBuffer);
+    proc.setNonRealtime(false);
+  }
+}
+}  // namespace
 
 TEST_F(FileOutputTests, iamf_pp_lpc_1ae_1mp) {
   for (const Layout layout : kAudioElementLayouts) {
@@ -243,4 +286,51 @@ TEST_F(FileOutputTests, pp_validate_file_checksum) {
   EXPECT_EQ(kNewChecksumString, kReferenceChecksumString);
 
   std::filesystem::remove(iamfOutPath);
+}
+
+// The Premiere Pro write loop records a per-audio-element WAV write that
+// fails after a successful open once as kFileWriteFailed, not on every
+// failing block.
+TEST_F(FileOutputTests,
+       pp_per_element_wav_write_failure_after_open_recorded_once) {
+  const juce::Uuid kAE = addAudioElement(Speakers::kStereo);
+  const juce::Uuid kMP = addMixPresentation();
+  addAudioElementsToMix(kMP, {kAE});
+
+  auto faults = std::make_shared<WriterFaults>();
+  faults->failWrites = true;
+  ExportErrorChangeCounter counter(fileExportRepository);
+
+  constexpr unsigned kNumBlocks = 8;
+  bounceFaultyPremiereProAudio(
+      faults, fileExportRepository, fpbr, audioElementRepository, mixRepository,
+      mixPresentationLoudnessRepository, roomSetupRepository, kNumBlocks);
+
+  EXPECT_EQ(faults->writersCreated, 1);
+  EXPECT_EQ(faults->writesAttempted, static_cast<int>(kNumBlocks));
+  EXPECT_EQ(counter.count, 1);
+  EXPECT_EQ(fileExportRepository.get().getExportError(),
+            ExportError::kFileWriteFailed);
+}
+
+// A Premiere Pro export whose per-audio-element WAV writer opens and writes
+// successfully but fails to close is recorded as kFileWriteFailed.
+TEST_F(FileOutputTests,
+       pp_per_element_wav_close_failure_after_writes_recorded) {
+  const juce::Uuid kAE = addAudioElement(Speakers::kStereo);
+  const juce::Uuid kMP = addMixPresentation();
+  addAudioElementsToMix(kMP, {kAE});
+
+  auto faults = std::make_shared<WriterFaults>();
+  faults->failClose = true;
+
+  constexpr unsigned kNumBlocks = 8;
+  bounceFaultyPremiereProAudio(
+      faults, fileExportRepository, fpbr, audioElementRepository, mixRepository,
+      mixPresentationLoudnessRepository, roomSetupRepository, kNumBlocks);
+
+  EXPECT_EQ(faults->writersCreated, 1);
+  EXPECT_EQ(faults->writesAttempted, static_cast<int>(kNumBlocks));
+  EXPECT_EQ(fileExportRepository.get().getExportError(),
+            ExportError::kFileWriteFailed);
 }

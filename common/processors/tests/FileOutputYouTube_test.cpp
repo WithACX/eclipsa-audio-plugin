@@ -31,23 +31,6 @@ class TestableFileOutputProcessor : public FileOutputProcessor {
     return securityScopedHandle_ != nullptr;
   }
 };
-
-// Counts every change to the stored export error.
-class ExportErrorChangeCounter : public juce::ValueTree::Listener {
- public:
-  explicit ExportErrorChangeCounter(FileExportRepository& repo) : repo_(repo) {
-    repo_.registerListener(this);
-  }
-  ~ExportErrorChangeCounter() override { repo_.deregisterListener(this); }
-  void valueTreePropertyChanged(juce::ValueTree&,
-                                const juce::Identifier& property) override {
-    if (property == FileExport::kExportError) ++count;
-  }
-  int count = 0;
-
- private:
-  FileExportRepository& repo_;
-};
 }  // namespace
 
 class FileOutputYouTube : public FileOutputTests {

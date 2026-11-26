@@ -17,6 +17,7 @@
 #include <logger/logger.h>
 
 #include <algorithm>
+#include <memory>
 #include <string>
 
 #include "WriteFailureClassifier.h"
@@ -189,9 +190,14 @@ void FileOutputProcessor::initializeFileExport(FileExport& config) {
     const juce::String kWavFilePath =
         config.getExportFile() + "_" + kElemName + ".wav";
 
-    iamfWavFileWriters_.emplace_back(new AudioElementFileWriter(
-        kWavFilePath, config.getSampleRate(), config.getBitDepth(),
-        config.getAudioCodec(), *audioElements[i]));
+    const AudioElement& kElement = *audioElements[i];
+    iamfWavFileWriters_.push_back(std::make_unique<AudioElementFileWriter>(
+        kElement,
+        createFileWriter(
+            kWavFilePath, config.getSampleRate(),
+            FileWriter::defaultWavChannelSet(kElement.getChannelCount()),
+            kElement.getFirstChannel(), config.getBitDepth(),
+            config.getAudioCodec())));
   }
 
   const juce::String kIamfPath = config.getExportFile();

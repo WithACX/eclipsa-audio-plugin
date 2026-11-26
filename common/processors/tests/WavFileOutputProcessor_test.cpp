@@ -606,8 +606,12 @@ TEST(WavFileOutputFileWriter, audio_element_writer_move_leaves_one_owner) {
   std::filesystem::remove(kOutPath);
   AudioElement element(juce::Uuid(), "Moved", Speakers::kStereo, 0);
   {
-    AudioElementFileWriter source(kOutPath.string(), 48000, 24,
-                                  AudioCodec::LPCM, element);
+    AudioElementFileWriter source(
+        element,
+        std::make_unique<FileWriter>(
+            kOutPath.string(), 48000,
+            FileWriter::defaultWavChannelSet(element.getChannelCount()),
+            element.getFirstChannel(), 24, AudioCodec::LPCM));
     ASSERT_TRUE(source.isOpen());
     AudioElementFileWriter moved(std::move(source));
 
