@@ -91,6 +91,58 @@ int checkLayout(FileExportScreen& screen, const juce::Rectangle<int>& size) {
   return visibleControls;
 }
 
+juce::Component* findContentChild(FileExportScreen& screen,
+                                  const juce::String& name) {
+  juce::Viewport* viewport = findViewport(screen);
+  if (viewport == nullptr || viewport->getViewedComponent() == nullptr) {
+    return nullptr;
+  }
+  for (juce::Component* child : viewport->getViewedComponent()->getChildren()) {
+    if (child->getName() == name) {
+      return child;
+    }
+  }
+  return nullptr;
+}
+
+const juce::StringArray kMuxVideoControls = {
+    "MuxVideoLbl",          "MuxVideoToggle",    "VideoSource",
+    "BrowseVideoSourceBtn", "ExportVideoFolder", "BrowseVideoBtn"};
+
+// A control never added to the content counts as hidden.
+void expectMuxVideoSectionShown(FileExportScreen& screen, bool shown) {
+  for (const auto& name : kMuxVideoControls) {
+    juce::Component* control = findContentChild(screen, name);
+    const bool kVisible = control != nullptr && control->isVisible();
+    EXPECT_EQ(kVisible, shown) << name;
+  }
+}
+
+juce::Button* findMuxVideoToggle(FileExportScreen& screen) {
+  return dynamic_cast<juce::Button*>(
+      findContentChild(screen, "MuxVideoToggle"));
+}
+
+// Picks `label` in the format selector as a user would, firing its onChange.
+void selectFormat(FileExportScreen& screen, const juce::String& label) {
+  juce::Viewport* viewport = findViewport(screen);
+  ASSERT_NE(viewport, nullptr);
+  for (juce::Component* child : viewport->getViewedComponent()->getChildren()) {
+    auto* selector = dynamic_cast<SelectionBox*>(child);
+    if (selector == nullptr) {
+      continue;
+    }
+    auto* comboBox = const_cast<juce::ComboBox*>(selector->getComboBox());
+    for (int i = 0; i < comboBox->getNumItems(); ++i) {
+      if (comboBox->getItemText(i) == label) {
+        comboBox->setSelectedItemIndex(i, juce::sendNotificationSync);
+        return;
+      }
+    }
+  }
+  FAIL() << "no format option " << label;
+}
+
 }  // namespace
 
 // At 1024x768 and at the enforced minimum editor size, every export
@@ -138,4 +190,56 @@ TEST(FileExportScreen, controls_stay_reachable_at_small_sizes) {
             viewport->getMaximumVisibleWidth());
   EXPECT_TRUE(viewport->isVerticalScrollBarShown());
   EXPECT_TRUE(viewport->isHorizontalScrollBarShown());
+}
+
+// Video muxing only handles IAMF, so a WAV format hides the whole mux video
+// section and stores the mux setting off; IAMF shows it again.
+TEST(FileExportScreen, wav_format_hides_mux_video_section) {
+  const juce::ScopedJuceInitialiser_GUI kJuce;
+  RendererProcessor processor;
+
+  FileExportRepository& fileExportRepo = processor.getFileExportRepository();
+  FileExport config = fileExportRepo.get();
+  config.setExportAudio(true);
+  config.setAudioFileFormat(AudioFileFormat::IAMF);
+  config.setExportVideo(true);
+  fileExportRepo.update(config);
+
+  StubEditor editor(processor);
+  const juce::Rectangle<int> kSize = screenBoundsForEditor(1600, 752, 0);
+  {
+    FileExportScreen screen(editor, processor.getRepositories(),
+                            processor.getFilePlaybackProcessorData());
+    screen.setBounds(kSize);
+    expectMuxVideoSectionShown(screen, true);
+    juce::Button* toggle = findMuxVideoToggle(screen);
+    ASSERT_NE(toggle, nullptr);
+    EXPECT_TRUE(toggle->isEnabled());
+    EXPECT_TRUE(toggle->getToggleState());
+
+    for (const char* wavFormat : {"Binaural WAV", "Room WAV"}) {
+      selectFormat(screen, wavFormat);
+      expectMuxVideoSectionShown(screen, false);
+      EXPECT_FALSE(toggle->getToggleState()) << wavFormat;
+      EXPECT_FALSE(fileExportRepo.get().getExportVideo()) << wavFormat;
+      // The rows below the hidden section stay laid out and reachable.
+      EXPECT_GT(checkLayout(screen, kSize), 0) << wavFormat;
+    }
+
+    selectFormat(screen, "IAMF");
+    expectMuxVideoSectionShown(screen, true);
+    EXPECT_TRUE(toggle->isEnabled());
+    EXPECT_FALSE(fileExportRepo.get().getExportVideo());
+
+    selectFormat(screen, "Room WAV");
+  }
+
+  // Reopening the screen on a stored WAV format keeps the section hidden and
+  // the mux setting off.
+  ASSERT_EQ(fileExportRepo.get().getAudioFileFormat(), AudioFileFormat::WAV);
+  FileExportScreen reopened(editor, processor.getRepositories(),
+                            processor.getFilePlaybackProcessorData());
+  reopened.setBounds(kSize);
+  expectMuxVideoSectionShown(reopened, false);
+  EXPECT_FALSE(fileExportRepo.get().getExportVideo());
 }
