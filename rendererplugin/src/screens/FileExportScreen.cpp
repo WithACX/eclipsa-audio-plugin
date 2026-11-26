@@ -151,6 +151,13 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
   videoSourceErrorLabel_.setMinimumHorizontalScale(1.0f);
   content_.addAndMakeVisible(videoSourceErrorLabel_);
 
+  // Named so tests can find the mux video section among the screen's controls.
+  muxVideoToggle_.setName("MuxVideoToggle");
+  videoSource_.setName("VideoSource");
+  browseVideoSourceButton_.setName("BrowseVideoSourceBtn");
+  exportVideoFolder_.setName("ExportVideoFolder");
+  browseVideoButton_.setName("BrowseVideoBtn");
+
   // Set the error labels
   startTimerErrorLabel_.setText("",
                                 juce::NotificationType::dontSendNotification);
@@ -213,6 +220,9 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
       config.setExportVideo(false);
     }
     updateMuxVideoAvailability(kNewFormat);
+    // Show or hide the mux video section now rather than on the next async
+    // layout pass.
+    resized();
 
     // Swap the old format's extension on an existing path rather than
     // appending the new one after it.
@@ -789,8 +799,9 @@ int FileExportScreen::layoutContent(juce::Rectangle<int> bounds) {
   content_.addAndMakeVisible(exportAudioElementsLabel_);
   exportAudioElementsLabel_.setBounds(row.removeFromLeft(componentWidth));
 
-  // Only draw video export options if the audio export is enabled.
-  if (enableFileExport_.getToggleState()) {
+  // Only draw video export options if the audio export is enabled and the
+  // format can be muxed.
+  if (enableFileExport_.getToggleState() && muxVideoAvailable_) {
     // Add the mux video components
     row = rightSideBounds.removeFromTop(rowHeight);
     content_.addAndMakeVisible(muxVidoeLabel_);
@@ -833,6 +844,8 @@ int FileExportScreen::layoutContent(juce::Rectangle<int> bounds) {
     browseVideoSourceButton_.setVisible(false);
     exportVideoFolder_.setVisible(false);
     browseVideoButton_.setVisible(false);
+    videoSourceErrorLabel_.setVisible(false);
+    exportVideoFolderErrorLabel_.setVisible(false);
   }
 
   // Draw in the manual export button
@@ -1140,14 +1153,12 @@ void FileExportScreen::refreshFileExportComponents() {
 
 void FileExportScreen::updateMuxVideoAvailability(
     const AudioFileFormat format) {
-  const bool kMuxAvailable = format == AudioFileFormat::IAMF;
-  if (!kMuxAvailable) {
+  muxVideoAvailable_ = format == AudioFileFormat::IAMF;
+  if (!muxVideoAvailable_) {
     muxVideoToggle_.setToggleState(
         false, juce::NotificationType::dontSendNotification);
   }
-  muxVideoToggle_.setEnabled(kMuxAvailable);
-  muxVideoToggle_.setTooltip(
-      kMuxAvailable ? "" : "Video muxing is only available for IAMF exports.");
+  muxVideoToggle_.setEnabled(muxVideoAvailable_);
 }
 
 bool FileExportScreen::validFileExportConfig(const FileExport& config) {
