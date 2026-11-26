@@ -19,10 +19,7 @@
 EclipsaLookAndFeel::EclipsaLookAndFeel()
     : audiowide_(juce::Typeface::createSystemTypefaceFor(
           EclipsaFonts::AudiowideRegular_ttf,
-          EclipsaFonts::AudiowideRegular_ttfSize)),
-      roboto_(juce::Typeface::createSystemTypefaceFor(
-          EclipsaFonts::RobotoRegular_ttf,
-          EclipsaFonts::RobotoRegular_ttfSize)) {}
+          EclipsaFonts::AudiowideRegular_ttfSize)) {}
 
 juce::Typeface::Ptr EclipsaLookAndFeel::getTypefaceForFont(
     const juce::Font& font) {
@@ -30,8 +27,12 @@ juce::Typeface::Ptr EclipsaLookAndFeel::getTypefaceForFont(
   if (family == kAudiowide && audiowide_ != nullptr) {
     return audiowide_;
   }
-  if (family == kRoboto && roboto_ != nullptr) {
-    return roboto_;
+  // The approved design was drawn with Roboto absent, so in the system
+  // sans-serif; that face is kept rather than the bundled Roboto.
+  if (family == kRoboto) {
+    juce::Font systemSans(font);
+    systemSans.setTypefaceName(juce::Font::getDefaultSansSerifFontName());
+    return juce::LookAndFeel_V4::getTypefaceForFont(systemSans);
   }
   return juce::LookAndFeel_V4::getTypefaceForFont(font);
 }

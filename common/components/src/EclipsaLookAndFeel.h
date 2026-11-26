@@ -16,9 +16,10 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
-// Serves the Audiowide and Roboto typefaces compiled into the plugin, so a
-// juce::Font that names either family renders in it whether or not the font is
-// installed. Every weight and style of a family maps to its one bundled face.
+// Serves the Audiowide typeface compiled into the plugin, so a juce::Font that
+// names it renders in Audiowide whether or not the font is installed; every
+// weight and style maps to the one bundled face. A font that names Roboto
+// renders in the system sans-serif at its own size and style.
 class EclipsaLookAndFeel final : public juce::LookAndFeel_V4 {
  public:
   static constexpr const char* kAudiowide = "Audiowide";
@@ -30,13 +31,12 @@ class EclipsaLookAndFeel final : public juce::LookAndFeel_V4 {
 
  private:
   const juce::Typeface::Ptr audiowide_;
-  const juce::Typeface::Ptr roboto_;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EclipsaLookAndFeel)
 };
 
 // JUCE resolves every Font through the process-wide default LookAndFeel, never
-// through a component's own, so the bundled fonts only reach the labels while
+// through a component's own, so these mappings only reach the labels while
 // an EclipsaLookAndFeel is the default. Each plugin editor holds one of these
 // as its first member: the first holder installs one shared instance and the
 // last one to go uninstalls it, so several open editors stay correct.

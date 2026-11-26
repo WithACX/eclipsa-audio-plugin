@@ -46,15 +46,25 @@ TEST(EclipsaLookAndFeel, serves_bundled_audiowide) {
   EXPECT_EQ(face->getName(), "Audiowide");
 }
 
-TEST(EclipsaLookAndFeel, serves_bundled_roboto) {
+TEST(EclipsaLookAndFeel, draws_roboto_in_the_system_sans_serif) {
   const juce::ScopedJuceInitialiser_GUI kJuce;
   EclipsaLookAndFeel lookAndFeel;
 
-  const juce::Typeface::Ptr face =
-      lookAndFeel.getTypefaceForFont(plainFont(EclipsaLookAndFeel::kRoboto));
+  for (const int style : {juce::Font::plain, juce::Font::bold}) {
+    const juce::Font roboto(EclipsaLookAndFeel::kRoboto, 12.0f, style);
+    const juce::Font systemSans(juce::Font::getDefaultSansSerifFontName(),
+                                12.0f, style);
 
-  ASSERT_NE(face, nullptr);
-  EXPECT_EQ(face->getName(), "Roboto");
+    const juce::Typeface::Ptr face = lookAndFeel.getTypefaceForFont(roboto);
+    const juce::Typeface::Ptr expected =
+        lookAndFeel.getTypefaceForFont(systemSans);
+
+    ASSERT_NE(face, nullptr);
+    ASSERT_NE(expected, nullptr);
+    EXPECT_EQ(face->getName(), expected->getName());
+    EXPECT_EQ(face->getStyle(), expected->getStyle());
+    EXPECT_NE(face->getName(), "Roboto");
+  }
 }
 
 TEST(EclipsaLookAndFeel, leaves_other_families_to_the_system) {
@@ -70,14 +80,17 @@ TEST(EclipsaLookAndFeel, leaves_other_families_to_the_system) {
 }
 
 // Call sites build fonts with juce::Font("Audiowide"/"Roboto", ...) and never
-// name a LookAndFeel, so the scope must route those fonts to the bundled faces.
-TEST(ScopedEclipsaDefaultLookAndFeel, routes_plain_fonts_to_bundled_faces) {
+// name a LookAndFeel, so the scope must route those fonts itself.
+TEST(ScopedEclipsaDefaultLookAndFeel, routes_plain_fonts) {
   const juce::ScopedJuceInitialiser_GUI kJuce;
   const ScopedEclipsaDefaultLookAndFeel scope;
 
   EXPECT_TRUE(eclipsaIsDefault());
   EXPECT_EQ(plainFont("Audiowide").getTypefacePtr()->getName(), "Audiowide");
-  EXPECT_EQ(plainFont("Roboto").getTypefacePtr()->getName(), "Roboto");
+  EXPECT_EQ(plainFont("Roboto").getTypefacePtr()->getName(),
+            plainFont(juce::Font::getDefaultSansSerifFontName().toRawUTF8())
+                .getTypefacePtr()
+                ->getName());
 }
 
 TEST(ScopedEclipsaDefaultLookAndFeel, stays_installed_until_last_holder_goes) {
