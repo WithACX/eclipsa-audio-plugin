@@ -136,29 +136,6 @@ class FaultInjectingProcessor : public Processor {
   std::shared_ptr<WriterFaults> faults_;
 };
 
-// Counts changes to the stored export error. JUCE sends no change message
-// when a property is set to the value it already holds, so this cannot tell
-// one recorded error from the same error written again on every block.
-class ExportErrorChangeCounter : public juce::ValueTree::Listener {
- public:
-  explicit ExportErrorChangeCounter(FileExportRepository& repo) : repo_(repo) {
-    repo_.registerListener(this);
-  }
-  ~ExportErrorChangeCounter() override { repo_.deregisterListener(this); }
-
-  ExportErrorChangeCounter(const ExportErrorChangeCounter&) = delete;
-  ExportErrorChangeCounter& operator=(const ExportErrorChangeCounter&) = delete;
-
-  void valueTreePropertyChanged(juce::ValueTree&,
-                                const juce::Identifier& property) override {
-    if (property == FileExport::kExportError) ++count;
-  }
-  int count = 0;
-
- private:
-  FileExportRepository& repo_;
-};
-
 class FileOutputTests : public ::testing::Test {
  public:
   using Layout = Speakers::AudioElementSpeakerLayout;

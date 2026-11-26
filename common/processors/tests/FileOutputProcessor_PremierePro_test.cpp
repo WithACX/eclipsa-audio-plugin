@@ -299,10 +299,12 @@ TEST_F(FileOutputTests,
 
   auto faults = std::make_shared<WriterFaults>();
   faults->failWrites = true;
-  // A per-block rewrite would replace this sentinel with kFileWriteFailed;
-  // first-error-wins leaves it in place.
-  faults->onSecondWrite = [this] {
+  // The first failing block must record kFileWriteFailed. A per-block
+  // rewrite would then replace this sentinel; first-error-wins leaves it.
+  ExportError errorBeforeSentinel = ExportError::kNoError;
+  faults->onSecondWrite = [this, &errorBeforeSentinel] {
     FileExport config = fileExportRepository.get();
+    errorBeforeSentinel = config.getExportError();
     config.setExportError(ExportError::kMuxFailed);
     fileExportRepository.update(config);
   };
@@ -314,6 +316,7 @@ TEST_F(FileOutputTests,
 
   EXPECT_EQ(faults->writersCreated, 1);
   EXPECT_EQ(faults->writesAttempted, static_cast<int>(kNumBlocks));
+  EXPECT_EQ(errorBeforeSentinel, ExportError::kFileWriteFailed);
   EXPECT_EQ(fileExportRepository.get().getExportError(),
             ExportError::kMuxFailed);
 }
