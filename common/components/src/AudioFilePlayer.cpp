@@ -104,10 +104,28 @@ AudioFilePlayer::AudioFilePlayer(FilePlaybackRepository& filePlaybackRepo,
   playbackSlider_.setValue(0.0, juce::sendNotification);
   playbackSlider_.setSliderStyle(juce::Slider::LinearHorizontal);
   playbackSlider_.setTextBoxStyle(juce::Slider::NoTextBox, false, 0, 0);
+  playbackSlider_.onDragStart = [this]() { seekReadout_.beginDrag(); };
+  playbackSlider_.onValueChange = [this]() {
+    if (seekReadout_.isDragging()) {
+      showPlaybackPosition(playbackSlider_.getValue());
+    }
+  };
   playbackSlider_.onDragEnd = [this]() {
+    const float kTarget = playbackSlider_.getValue();
     FilePlayback fpb = fpbr_.get();
-    fpb.setSeekPosition(playbackSlider_.getValue());
-    fpbr_.update(fpb);
+    if (fpb.getSeekPosition() == kTarget) {
+      // Releasing on the previous seek target changes no property, so the
+      // processor would not seek; re-send it so playback resumes from the
+      // released position.
+      fpbr_.getTree().sendPropertyChangeMessage(FilePlayback::kSeekPosition);
+    } else {
+      fpb.setSeekPosition(kTarget);
+      fpbr_.update(fpb);
+    }
+    float processorPos = 0.0f;
+    fpbData_.currFilePosition.read(processorPos);
+    seekReadout_.endDrag(kTarget, processorPos);
+    showPlaybackPosition(kTarget);
   };
   addAndMakeVisible(playbackSlider_);
 
@@ -224,32 +242,21 @@ void AudioFilePlayer::update() {
   if (state != FilePlayback::ProcessorState::kError) {
     float currPos = 0.0f;
     fpbData_.currFilePosition.read(currPos);
-    unsigned long long duration_s = 0.0f;
-    fpbData_.fileDuration_s.read(duration_s);
-    const float kCurrentTime = currPos * duration_s;
+    const float kPos =
+        seekReadout_.displayPosition(playbackSlider_.getValue(), currPos);
+    showPlaybackPosition(kPos);
 
-    const int kCurrMinutes = static_cast<int>(kCurrentTime) / 60;
-    const int kCurrSeconds = static_cast<int>(kCurrentTime) % 60;
-    const int kTotalMinutes = static_cast<int>(duration_s) / 60;
-    const int kTotalSeconds = static_cast<int>(duration_s) % 60;
-
-    juce::String timeStr;
-    // Format long file durations differently
-    if (duration_s >= 3600) {
-      timeStr =
-          juce::String::formatted("%d:%02d / %d:%02d", kCurrMinutes,
-                                  kCurrSeconds, kTotalMinutes, kTotalSeconds);
-    } else {
-      timeStr =
-          juce::String::formatted("%02d:%02d / %02d:%02d", kCurrMinutes,
-                                  kCurrSeconds, kTotalMinutes, kTotalSeconds);
-    }
-    timeLabel_.setText(timeStr, juce::dontSendNotification);
-
-    if (!playbackSlider_.isMouseButtonDown()) {
-      playbackSlider_.setValue(currPos, juce::dontSendNotification);
+    if (!seekReadout_.isDragging()) {
+      playbackSlider_.setValue(kPos, juce::dontSendNotification);
     }
   }
+}
+
+void AudioFilePlayer::showPlaybackPosition(const float position) {
+  unsigned long long duration_s = 0;
+  fpbData_.fileDuration_s.read(duration_s);
+  timeLabel_.setText(formatPlaybackTime(position, duration_s),
+                     juce::dontSendNotification);
 }
 
 void AudioFilePlayer::timerCallback() {

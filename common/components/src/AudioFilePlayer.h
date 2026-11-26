@@ -20,6 +20,7 @@
 
 #include "components/icons/svg/SvgIconComponent.h"
 #include "components/src/ColouredSlider.h"
+#include "components/src/PlaybackSeekReadout.h"
 #include "components/src/RoundImageButton.h"
 #include "data_repository/implementation/FilePlaybackRepository.h"
 #include "data_structures/src/FilePlaybackProcessorData.h"
@@ -39,6 +40,7 @@ class AudioFilePlayer : public juce::Component, private juce::Timer {
   class Spinner;
 
   void updateComponentVisibility();
+  void showPlaybackPosition(float position);
 
   // Components
   RoundImageButton playButton_, pauseButton_, stopButton_;
@@ -52,4 +54,5 @@ class AudioFilePlayer : public juce::Component, private juce::Timer {
   // State
   FilePlaybackRepository& fpbr_;
   FilePlaybackProcessorData& fpbData_;
+  PlaybackSeekReadout seekReadout_;
 };
