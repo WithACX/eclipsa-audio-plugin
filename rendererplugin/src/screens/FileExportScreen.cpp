@@ -223,7 +223,9 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
       const juce::String kNewPath =
           kPath.dropLastCharacters(kOldExtension.length()) + kNewExtension;
       exportPath_.setText(kNewPath);
-      config.setExportFile(kNewPath);
+      auto [expanded, valid] = validateAndShowPathError(
+          exportPath_.getText(), false, exportPathErrorLabel_);
+      config.setExportFile(expanded);
     }
     repository_->update(config);
   });
@@ -342,12 +344,17 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
         juce::FileBrowserComponent::saveMode |
             juce::FileBrowserComponent::canSelectFiles,
         [this](const auto& file) {
+          // A cancelled chooser returns no file; keep the current path.
+          if (file.getResult() == juce::File()) {
+            return;
+          }
           juce::String fullPath = file.getResult().getFullPathName();
           exportPath_.setText(fullPath);
+          // Validate the text box text, which carries the default extension.
+          auto [expanded, valid] = validateAndShowPathError(
+              exportPath_.getText(), false, exportPathErrorLabel_);
           FileExport config = repository_->get();
-
-          // Use the text box text to add the default extension if needed
-          config.setExportFile(exportPath_.getText());
+          config.setExportFile(expanded);
           config.setExportFolder(
               file.getResult().getParentDirectory().getFullPathName());
 #if JUCE_MAC
@@ -372,7 +379,7 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
           repository_->update(config);
 
           FilePlayback playbackConfig = filePlaybackRepository_->get();
-          playbackConfig.setPlaybackFile(exportPath_.getText());
+          playbackConfig.setPlaybackFile(expanded);
           playbackConfig.setPlaybackCommand(
               FilePlayback::PlaybackCommand::kPause);
           filePlaybackRepository_->update(playbackConfig);
@@ -404,12 +411,16 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
         juce::FileBrowserComponent::saveMode |
             juce::FileBrowserComponent::canSelectFiles,
         [this](const auto& file) {
+          if (file.getResult() == juce::File()) {
+            return;
+          }
           juce::String fullPath = file.getResult().getFullPathName();
           exportVideoFolder_.setText(fullPath);
+          auto [expanded, valid] =
+              validateAndShowPathError(exportVideoFolder_.getText(), false,
+                                       exportVideoFolderErrorLabel_);
           FileExport config = repository_->get();
-
-          // Use the text box text to add the default extension if needed
-          config.setVideoExportFolder(exportVideoFolder_.getText());
+          config.setVideoExportFolder(expanded);
           repository_->update(config);
         });
   };
