@@ -1,16 +1,16 @@
 ---
 id: tick-acceptance-boxes-before-closing-merge
-trigger: "when a PR body carries a Closes reference to an issue whose acceptance criteria are checkboxes and the PR is about to be merged"
-confidence: 0.4
+trigger: "when merging a PR whose body closes an issue in another repo, such as Closes WithACX/eclipsa-audio-planning#N"
+confidence: 0.5
 domain: process
 scope: project
-date: 2026-11-25
+date: 2026-11-26
 ---
-# Tick Verified Acceptance Boxes Before the Closing Merge
+# Tick Verified Acceptance Boxes Before Merging the Closing PR
 
 ## Action
-Tick each acceptance checkbox you have verified on the issue before merging the PR that closes it, because merging closes the issue and boxes ticked after that are not part of the completed record.
+Tick each acceptance box you have verified on the PR head before merging, because a merge that carries `Closes <owner/repo>#<issue>` closes the issue immediately and the boxes are then read as they stand.
 
 ## Evidence
-- Observed 3 times in session 20d2857c-ac35-453b-be66-b4c8b81c4599 (2026-11-25)
-- Pattern: Unit #65 merged its PR and closed WithACX/eclipsa-audio-planning#65 with two verified acceptance boxes still unticked, and the unit stopped with "2 acceptance boxes verified but not ticked after close". The unit's boxes were then ticked by hand after the fact, and #107 had its boxes ticked the same way. The next unit (#52) was dispatched with an explicit instruction to tick verified boxes BEFORE merging.
+- Observed 4 times in session 20d2857c-ac35-453b-be66-b4c8b81c4599 (2026-11-25 to 2026-11-26)
+- Pattern: Both unit dispatch prompts required every PR body to carry a cross-repo `Closes` line and required ticking boxes before merge. The issue readback after each merge showed all acceptance boxes ticked and the issue CLOSED. A learning PR (#67) for this same rule was opened in the session.
