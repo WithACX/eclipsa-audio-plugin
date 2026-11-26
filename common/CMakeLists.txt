@@ -41,10 +41,12 @@ if (ECLIPSA_LOGIC_PRO_BUILD)
 endif ()
 
 #====================================================================
-# Icon resources
+# Icon and font resources
 #====================================================================
 add_subdirectory(components/icons)
 target_link_libraries(components INTERFACE binary_data)
+add_subdirectory(components/fonts)
+target_link_libraries(components INTERFACE font_data)
 # Link components against Eigen (for AmbisonicsVisualizer)
 target_link_libraries(components INTERFACE Eigen)
 

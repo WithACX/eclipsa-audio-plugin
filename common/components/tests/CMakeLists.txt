@@ -27,3 +27,4 @@ eclipsa_add_test(test_loudness_warning_banner LoudnessWarningBanner_test.cpp "co
 eclipsa_add_test(test_mix_presentation_warning_banner MixPresentationWarningBanner_test.cpp "components")
 eclipsa_add_test(test_segmented_toggle_button SegmentedToggleButton_test.cpp "components")
 eclipsa_add_test(test_audio_file_player AudioFilePlayer_test.cpp "components")
+eclipsa_add_test(test_eclipsa_look_and_feel EclipsaLookAndFeel_test.cpp "components")

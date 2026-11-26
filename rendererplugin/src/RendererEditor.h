@@ -53,6 +53,9 @@ class RendererEditor final : public MainEditor {
   std::array<WarningBannerBase*, 4> banners();
   void addBanners();
 
+  // First member, so the bundled fonts are the default before any child
+  // component measures text.
+  ScopedEclipsaDefaultLookAndFeel defaultLookAndFeel_;
   CustomLookAndFeel customLookAndFeel_;
 
   juce::Label titleLabel_;
