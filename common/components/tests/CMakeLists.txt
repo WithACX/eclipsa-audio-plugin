@@ -29,3 +29,7 @@ eclipsa_add_test(test_mix_presentation_warning_banner MixPresentationWarningBann
 eclipsa_add_test(test_segmented_toggle_button SegmentedToggleButton_test.cpp "components")
 eclipsa_add_test(test_audio_file_player AudioFilePlayer_test.cpp "components")
 eclipsa_add_test(test_eclipsa_look_and_feel EclipsaLookAndFeel_test.cpp "components")
+eclipsa_add_test(test_button_fonts ButtonFonts_test.cpp "components;processors")
+eclipsa_add_test(test_outline_title OutlineTitle_test.cpp "components")
+eclipsa_add_test(test_cap_centred_text CapCentredText_test.cpp "components")
+eclipsa_add_test(test_text_fonts TextFonts_test.cpp "components;processors")

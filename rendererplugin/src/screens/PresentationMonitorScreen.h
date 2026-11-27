@@ -17,6 +17,7 @@
 #pragma once
 #include "EditPresentationScreen.h"
 #include "ElementRoutingScreen.h"
+#include "components/src/EclipsaLookAndFeel.h"
 #include "components/src/ImageTextButton.h"  // Include the ImageTextButton header
 #include "data_repository/implementation/AudioElementRepository.h"
 #include "data_repository/implementation/MixPresentationSoloMuteRepository.h"
@@ -24,6 +25,13 @@
 #include "data_structures/src/MixPresentation.h"
 #include "data_structures/src/RepositoryCollection.h"
 #include "mix_tabs/MixPresentationViewPort.h"
+
+class PresentationTabsLookAndFeel : public juce::LookAndFeel_V4 {
+ public:
+  juce::Font getTabButtonFont(juce::TabBarButton&, float) override {
+    return EclipsaLookAndFeel::roboto(14.f);
+  }
+};
 
 class CustomTabbedComponent : public juce::TabbedComponent {
  public:
@@ -40,6 +48,7 @@ class CustomTabbedComponent : public juce::TabbedComponent {
 
  private:
   bool isRestoringTabs_ = false;
+  PresentationTabsLookAndFeel lookAndFeel_;
 };
 
 class PresentationMonitorScreen : public juce::Component,

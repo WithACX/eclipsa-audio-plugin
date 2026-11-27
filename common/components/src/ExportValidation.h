@@ -20,6 +20,8 @@
 #include "AudioFilePlayer.h"
 #include "components/icons/svg/SvgIconComponent.h"
 #include "components/icons/svg/SvgIconLookup.h"
+#include "components/src/CapCentredText.h"
+#include "components/src/EclipsaLookAndFeel.h"
 #include "components/src/SelectionBox.h"
 #include "data_repository/implementation/FileExportRepository.h"
 #include "data_repository/implementation/FilePlaybackRepository.h"
@@ -44,7 +46,7 @@ class ExportValidationComponent : public juce::Component,
                        "best matches the requested layout.") {
     title_.setColour(juce::Label::textColourId, EclipsaColours::headingGrey);
     title_.setJustificationType(juce::Justification::left);
-    title_.setFont(juce::Font("Roboto", 22.0f, juce::Font::plain));
+    title_.setFont(EclipsaLookAndFeel::roboto(22.f));
     addAndMakeVisible(title_);
 
     // Populate layout options
@@ -165,7 +167,7 @@ class ExportValidationComponent : public juce::Component,
 
   FilePlaybackRepository& fpbr_;
   FilePlaybackProcessorData& fpbData_;
-  juce::Label title_;
+  CapCentredLabel title_;
   SelectionBox layoutToDecode_;
   SVGToolTip decodeToolTip_;
   AudioFilePlayer audioPlayer_;

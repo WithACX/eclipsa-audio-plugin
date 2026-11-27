@@ -3,7 +3,9 @@
 The plugins' UI asks for Audiowide (the renderer header) and Roboto (all other
 labels) by family name. These TTFs are compiled into both plugins as the
 `font_data` binary-data target, so the labels render correctly on machines
-that do not have the fonts installed. `EclipsaLookAndFeel` serves them.
+that do not have the fonts installed. `EclipsaLookAndFeel` serves Audiowide on
+every platform and Roboto on macOS; Windows and Linux draw Roboto text in a
+system substitute.
 
 Only the Regular weight ships, because no call site asks for another weight
 or style. Add a TTF here, list it in `CMakeLists.txt`, and map it in

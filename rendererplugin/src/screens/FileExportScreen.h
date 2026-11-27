@@ -17,6 +17,8 @@
 #pragma once
 #include <components/components.h>
 
+#include "components/src/CapCentredText.h"
+#include "components/src/EclipsaLookAndFeel.h"
 #include "components/src/ExportValidation.h"
 #include "components/src/FilePickerTextBox.h"
 #include "components/src/SelectionBox.h"
@@ -121,7 +123,7 @@ class FileExportScreen : public juce::Component,
   juce::Component content_;
 
   // Left side elements - Time inputs (use TitledTextBox like other fields)
-  juce::Label exportParametersLabel_;
+  CapCentredLabel exportParametersLabel_;
   TitledTextBox startTimer_;
   juce::Label startTimerErrorLabel_;
   TimeFormatSegmentSelector startFormatSegments_;
@@ -152,14 +154,14 @@ class FileExportScreen : public juce::Component,
   juce::Optional<juce::AudioPlayHead::FrameRate> cachedFrameRate_;
 
   // Right side elements
-  juce::Label exportAudioLabel_;
+  CapCentredLabel exportAudioLabel_;
   SliderButton enableFileExport_;
   FilePickerTextBox exportPath_;
   juce::Label exportPathErrorLabel_;
   juce::ImageButton browseButton_;
   juce::ToggleButton exportAudioElementsToggle_;
-  juce::Label exportAudioElementsLabel_;
-  juce::Label muxVidoeLabel_;
+  CapCentredLabel exportAudioElementsLabel_;
+  CapCentredLabel muxVidoeLabel_;
   SliderButton muxVideoToggle_;
   bool muxVideoAvailable_ = true;
   FilePickerTextBox exportVideoFolder_;

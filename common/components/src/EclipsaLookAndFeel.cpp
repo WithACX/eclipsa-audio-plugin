@@ -16,10 +16,23 @@
 
 #include "EclipsaFonts.h"
 
+namespace {
+
+// Only macOS draws Roboto text in the bundled face.
+juce::Typeface::Ptr bundledRoboto() {
+#if JUCE_MAC
+  return juce::Typeface::createSystemTypefaceFor(
+      EclipsaFonts::RobotoRegular_ttf, EclipsaFonts::RobotoRegular_ttfSize);
+#else
+  return nullptr;
+#endif
+}
+
+}  // namespace
+
 juce::String EclipsaLookAndFeel::robotoSubstituteName() {
-  // macOS draws an uninstalled Roboto in Helvetica, the face the approved
-  // design shows. Windows ships no Helvetica, so it gets Arial, which shares
-  // Helvetica's widths and keeps layouts identical.
+  // Windows ships no Helvetica, so it gets Arial, which shares Helvetica's
+  // widths and keeps layouts identical.
 #if JUCE_MAC
   return "Helvetica";
 #elif JUCE_WINDOWS
@@ -29,10 +42,15 @@ juce::String EclipsaLookAndFeel::robotoSubstituteName() {
 #endif
 }
 
+juce::Font EclipsaLookAndFeel::roboto(const float points) {
+  return juce::Font(kRoboto, points, juce::Font::plain).withPointHeight(points);
+}
+
 EclipsaLookAndFeel::EclipsaLookAndFeel()
     : audiowide_(juce::Typeface::createSystemTypefaceFor(
           EclipsaFonts::AudiowideRegular_ttf,
-          EclipsaFonts::AudiowideRegular_ttfSize)) {}
+          EclipsaFonts::AudiowideRegular_ttfSize)),
+      roboto_(bundledRoboto()) {}
 
 juce::Typeface::Ptr EclipsaLookAndFeel::getTypefaceForFont(
     const juce::Font& font) {
@@ -40,9 +58,10 @@ juce::Typeface::Ptr EclipsaLookAndFeel::getTypefaceForFont(
   if (family == kAudiowide && audiowide_ != nullptr) {
     return audiowide_;
   }
-  // The approved design was drawn with Roboto absent, so Roboto requests get
-  // the face the system substitutes for it rather than the bundled Roboto.
   if (family == kRoboto) {
+    if (roboto_ != nullptr) {
+      return roboto_;
+    }
     juce::Font substitute(font);
     substitute.setTypefaceName(robotoSubstituteName());
     return juce::LookAndFeel_V4::getTypefaceForFont(substitute);

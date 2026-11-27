@@ -16,6 +16,8 @@
 
 #include <processors/gain/MSProcessor.h>
 
+#include "components/src/EclipsaLookAndFeel.h"
+
 MeterLookAndFeel::MeterLookAndFeel(MSPlaybackRepository& msPlaybackRepo)
     : msPlaybackRepo_(msPlaybackRepo) {
   // Text colours.
@@ -31,6 +33,10 @@ MeterLookAndFeel::MeterLookAndFeel(MSPlaybackRepository& msPlaybackRepo)
   setColour(juce::TextButton::ColourIds::buttonColourId, kBckGnd);
   setColour(juce::TextButton::ColourIds::buttonOnColourId,
             EclipsaColours::onButtonGrey);
+}
+
+juce::Font MeterLookAndFeel::getTextButtonFont(juce::TextButton&, int) {
+  return EclipsaLookAndFeel::roboto(14.f);
 }
 
 void MeterLookAndFeel::drawButtonBackground(

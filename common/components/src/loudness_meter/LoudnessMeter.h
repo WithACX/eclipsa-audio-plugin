@@ -24,6 +24,8 @@ class MeterLookAndFeel : public juce::LookAndFeel_V4 {
  public:
   MeterLookAndFeel(MSPlaybackRepository& msPlaybackRepo_);
 
+  juce::Font getTextButtonFont(juce::TextButton&, int) override;
+
   void drawButtonBackground(juce::Graphics& g, juce::Button& button,
                             const juce::Colour& backgroundColour,
                             bool isMouseOverButton, bool isButtonDown) override;

@@ -28,11 +28,11 @@ juce::Font plainFont(const char* family) {
   return juce::Font(family, 12.0f, juce::Font::plain);
 }
 
-// The face the approved design was drawn in: Helvetica on macOS, and Arial,
-// which shares its widths, on Windows.
+// The bundled Roboto on macOS, Arial on Windows, the system sans-serif on
+// Linux.
 juce::String expectedRobotoFace() {
 #if JUCE_MAC
-  return "Helvetica";
+  return "Roboto";
 #elif JUCE_WINDOWS
   return "Arial";
 #else
@@ -60,8 +60,8 @@ TEST(EclipsaLookAndFeel, serves_bundled_audiowide) {
   EXPECT_EQ(face->getName(), "Audiowide");
 }
 
-// Verifies Roboto text draws in the face the design used, at plain and bold.
-TEST(EclipsaLookAndFeel, draws_roboto_in_the_design_face) {
+// Verifies Roboto text draws in the platform's Roboto face, at plain and bold.
+TEST(EclipsaLookAndFeel, draws_roboto_in_the_platform_face) {
   const juce::ScopedJuceInitialiser_GUI kJuce;
   EclipsaLookAndFeel lookAndFeel;
 

@@ -244,7 +244,7 @@ void ElementRoutingScreen::paint(juce::Graphics& g) {
   // Add the tracks title
   addAndMakeVisible(tracksLabel_);
   tracksLabel_.setText("Tracks", juce::dontSendNotification);
-  tracksLabel_.setFont(juce::Font("Roboto", 22.0f, juce::Font::plain));
+  tracksLabel_.setFont(EclipsaLookAndFeel::roboto(22.f));
   auto topBound = bounds.removeFromTop(30);
   tracksLabel_.setBounds(topBound.removeFromLeft(200));
 

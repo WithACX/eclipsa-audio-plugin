@@ -17,6 +17,8 @@
 #include <gtest/gtest.h>
 
 #include "../src/RendererProcessor.h"
+#include "components/src/EclipsaColours.h"
+#include "components/src/EclipsaLookAndFeel.h"
 
 namespace {
 
@@ -291,4 +293,33 @@ TEST(FileExportScreen, share_button_under_video_path_and_gated_on_it) {
   fileExportRepo.update(config);
   screen.resized();
   EXPECT_TRUE(share->isEnabled());
+}
+
+// Verifies the export page's red error messages are 12 pt Roboto, the size of
+// the text box titles.
+TEST(FileExportScreen, error_messages_are_12_point_roboto) {
+  const juce::ScopedJuceInitialiser_GUI kJuce;
+  const ScopedEclipsaDefaultLookAndFeel scope;
+  RendererProcessor processor;
+  StubEditor editor(processor);
+  FileExportScreen screen(editor, processor.getRepositories(),
+                          processor.getFilePlaybackProcessorData());
+  screen.setBounds(screenBoundsForEditor(1600, 752, 0));
+
+  juce::Viewport* viewport = findViewport(screen);
+  ASSERT_NE(viewport, nullptr);
+  int errorLabels = 0;
+  for (juce::Component* child : viewport->getViewedComponent()->getChildren()) {
+    const auto* label = dynamic_cast<juce::Label*>(child);
+    if (label == nullptr ||
+        label->findColour(juce::Label::textColourId) != EclipsaColours::red) {
+      continue;
+    }
+    EXPECT_EQ(label->getFont().getTypefaceName(), EclipsaLookAndFeel::kRoboto)
+        << label->getName();
+    EXPECT_NEAR(label->getFont().getHeightInPoints(), 12.f, 0.01f)
+        << label->getName();
+    ++errorLabels;
+  }
+  EXPECT_EQ(errorLabels, 7);
 }

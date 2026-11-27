@@ -20,6 +20,8 @@
 
 #include <string>
 
+#include "CapCentredText.h"
+#include "EclipsaLookAndFeel.h"
 #include "Icons.h"
 
 class ImageTextButtonLookAndFeel : public juce::LookAndFeel_V4 {
@@ -38,39 +40,28 @@ class ImageTextButtonLookAndFeel : public juce::LookAndFeel_V4 {
     g.drawRoundedRectangle(bounds, cornerSize, 1.0f);
   }
 
+  juce::Font getTextButtonFont(juce::TextButton&, int) override {
+    return juce::Font(EclipsaLookAndFeel::kRoboto, 12.f, juce::Font::plain);
+  }
+
   void drawButtonText(juce::Graphics& g, juce::TextButton& button,
                       bool isMouseOverButton, bool isButtonDown) override {
-    juce::Font font = juce::Font("Roboto", 12.f, juce::Font::plain);
-    g.setFont(font);
+    const juce::Font font = getTextButtonFont(button, button.getHeight());
     g.setColour(button.findColour(juce::TextButton::textColourOnId));
 
-    auto cornerSize = juce::jmin(button.getHeight() / 2, button.getWidth()) / 2;
+    // The icon and the text's capitals share the button's centre line.
+    const float centreY = button.getHeight() / 2.f;
+    const float iconSize = juce::roundToInt(font.getHeight());
+    const float textX =
+        (button.getWidth() - font.getStringWidthFloat(button.getButtonText())) /
+            2.f +
+        iconSize * 0.5f;
+    CapCentredText::draw(g, font, button.getButtonText(), textX, centreY);
 
-    auto fontHeight = juce::roundToInt(font.getHeight());
-    auto yIndent = (button.getHeight() - fontHeight) / 2.f;
-    auto leftIndent = cornerSize;
-    auto rightIndent = leftIndent;
-    auto textHeight = font.getHeight();
-    auto maxTextWidth =
-        button.getWidth() -
-        (leftIndent + rightIndent +
-         (3 * textHeight * 1.25f));  // Adjust for image width and padding
-    int textWidth = font.getStringWidth(button.getButtonText());
-
-    auto rect = juce::Rectangle<int>(
-        (button.getWidth() - textWidth) / 2 + (fontHeight * 0.5f), yIndent + 1,
-        textWidth * 1.25f,
-        textHeight);  // Adjusted for image position
-
-    g.drawFittedText(button.getButtonText(), rect,
-                     juce::Justification::centredLeft, 2);
-
-    // Draw the image next to the text
     if (!image_.isNull()) {
-      auto imageRect =
-          juce::Rectangle<float>(rect.getX() - fontHeight * 1.5f,
-                                 rect.getY() - 2, fontHeight, fontHeight);
-      g.drawImage(image_, imageRect);
+      g.drawImage(image_, juce::Rectangle<float>(textX - iconSize * 1.5f,
+                                                 centreY - iconSize / 2.f,
+                                                 iconSize, iconSize));
     }
   }
 
@@ -131,6 +122,10 @@ class BlueTextBlackButtonLookAndFeel : public ImageTextButtonLookAndFeel {
               EclipsaColours::backgroundOffBlack);
   }
 
+  juce::Font getTextButtonFont(juce::TextButton&, int) override {
+    return EclipsaLookAndFeel::roboto(14.f);
+  }
+
   void drawButtonBackground(juce::Graphics& g, juce::Button& button,
                             const juce::Colour& backgroundColour,
                             bool isMouseOverButton,
@@ -156,10 +151,13 @@ class ExportImageTextButtonLookAndFeel : public CyanImageTextButtonLookAndFeel {
                                    const juce::Image& image2)
       : CyanImageTextButtonLookAndFeel(image1), image2_(image2) {}
 
+  juce::Font getTextButtonFont(juce::TextButton&, int) override {
+    return EclipsaLookAndFeel::roboto(14.f);
+  }
+
   void drawButtonText(juce::Graphics& g, juce::TextButton& button,
                       bool isMouseOverButton, bool isButtonDown) override {
-    juce::Font font =
-        juce::Font("Roboto", 16.f, juce::Font::plain);  // Font size remains 16
+    const juce::Font font = getTextButtonFont(button, button.getHeight());
     g.setFont(font);
     g.setColour(button.findColour(juce::TextButton::textColourOnId));
 
