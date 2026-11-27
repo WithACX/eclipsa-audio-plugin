@@ -107,7 +107,8 @@ juce::Component* findContentChild(FileExportScreen& screen,
 
 const juce::StringArray kMuxVideoControls = {
     "MuxVideoLbl",          "MuxVideoToggle",    "VideoSource",
-    "BrowseVideoSourceBtn", "ExportVideoFolder", "BrowseVideoBtn"};
+    "BrowseVideoSourceBtn", "ExportVideoFolder", "BrowseVideoBtn",
+    "Share To YouTube"};
 
 // A control never added to the content counts as hidden.
 void expectMuxVideoSectionShown(FileExportScreen& screen, bool shown) {
@@ -242,4 +243,52 @@ TEST(FileExportScreen, wav_format_hides_mux_video_section) {
   reopened.setBounds(kSize);
   expectMuxVideoSectionShown(reopened, false);
   EXPECT_FALSE(fileExportRepo.get().getExportVideo());
+}
+
+// The share button sits just below the Mix presentations box, right-aligned to
+// the validation column at the outlined-box height of the fields, shows with
+// the mux section even while muxing is off, and enables once a path is set.
+TEST(FileExportScreen, share_button_under_video_path_and_gated_on_it) {
+  const juce::ScopedJuceInitialiser_GUI kJuce;
+  RendererProcessor processor;
+
+  FileExportRepository& fileExportRepo = processor.getFileExportRepository();
+  FileExport config = fileExportRepo.get();
+  config.setExportAudio(true);
+  config.setAudioFileFormat(AudioFileFormat::IAMF);
+  config.setExportVideo(false);
+  config.setVideoExportFolder("");
+  fileExportRepo.update(config);
+
+  StubEditor editor(processor);
+  FileExportScreen screen(editor, processor.getRepositories(),
+                          processor.getFilePlaybackProcessorData());
+  screen.setBounds(screenBoundsForEditor(1600, 752, 0));
+
+  juce::Component* share = findContentChild(screen, "Share To YouTube");
+  juce::Component* videoPath = findContentChild(screen, "ExportVideoFolder");
+  ASSERT_NE(share, nullptr);
+  ASSERT_NE(videoPath, nullptr);
+  EXPECT_TRUE(share->isVisible());
+  juce::Component* mixPresentations =
+      findContentChild(screen, "MixPresentations");
+  ASSERT_NE(mixPresentations, nullptr);
+  // 20 px below the outlined box, which sits under a 20 px title band.
+  EXPECT_EQ(share->getY(), mixPresentations->getY() + 40);
+  juce::Component* validation = nullptr;
+  for (juce::Component* child : share->getParentComponent()->getChildren()) {
+    if (dynamic_cast<ExportValidationComponent*>(child) != nullptr) {
+      validation = child;
+    }
+  }
+  ASSERT_NE(validation, nullptr);
+  EXPECT_EQ(share->getRight(), validation->getRight());
+  EXPECT_EQ(share->getHeight(), videoPath->getHeight() - 20);
+  EXPECT_FALSE(share->isEnabled());
+
+  config = fileExportRepo.get();
+  config.setVideoExportFolder("/tmp/eclipsa_share_test.mp4");
+  fileExportRepo.update(config);
+  screen.resized();
+  EXPECT_TRUE(share->isEnabled());
 }
