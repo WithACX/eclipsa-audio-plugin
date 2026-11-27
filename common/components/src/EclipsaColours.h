@@ -21,6 +21,7 @@
 namespace EclipsaColours {
 const static juce::Colour green = juce::Colour(117, 250, 76);
 const static juce::Colour red = juce::Colour(234, 50, 35);
+const static juce::Colour youtubeRed = juce::Colour(255, 9, 52);
 const static juce::Colour yellow = juce::Colour(254, 252, 90);
 const static juce::Colour orange = juce::Colour(235, 159, 56);
 const static juce::Colour selectCyan = juce::Colour(128, 213, 212);

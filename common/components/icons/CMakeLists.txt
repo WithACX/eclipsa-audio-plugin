@@ -40,4 +40,5 @@ juce_add_binary_data(binary_data
         Edit.png
         settings.png
         Line.png
-        Close.png)
+        Close.png
+        YouTube.png)

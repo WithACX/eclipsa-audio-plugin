@@ -76,4 +76,5 @@ class IconStore {
   LOAD_IMAGE(settings);
   LOAD_IMAGE(Line);
   LOAD_IMAGE(Close);
+  LOAD_IMAGE(YouTube);
 };

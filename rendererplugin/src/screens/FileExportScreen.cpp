@@ -17,6 +17,7 @@
 #include "../RendererProcessor.h"
 #include "components/src/EclipsaColours.h"
 #include "components/src/ExportValidation.h"
+#include "components/src/YouTubeUpload.h"
 #include "data_structures/src/FileExport.h"
 #include "data_structures/src/FilePlayback.h"
 #include "data_structures/src/MixPresentation.h"
@@ -152,6 +153,7 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
   content_.addAndMakeVisible(videoSourceErrorLabel_);
 
   // Named so tests can find the mux video section among the screen's controls.
+  mixPresentations_.setName("MixPresentations");
   muxVideoToggle_.setName("MuxVideoToggle");
   videoSource_.setName("VideoSource");
   browseVideoSourceButton_.setName("BrowseVideoSourceBtn");
@@ -472,6 +474,10 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
   videoSource_.setOnReturnCallback(validateVideoSource);
   videoSource_.setOnFocusLostCallback(validateVideoSource);
 
+  youtubeUploadButton_.onClick = [this] {
+    YouTubeUpload::openUploadPage(repository_->get());
+  };
+
   exportAudioElementsToggle_.setToggleState(
       config.getExportAudioElements(),
       juce::NotificationType::dontSendNotification);
@@ -650,6 +656,10 @@ void FileExportScreen::updateLayout() {
   const int requiredHeight =
       layoutContent({0, 0, kMinContentWidth, kMeasureHeight});
 
+  // Only enable the upload once there is a video path to find it at.
+  youtubeUploadButton_.setEnabled(
+      !repository_->get().getVideoExportFolder().trim().isEmpty());
+
   // Showing one scrollbar can shrink the visible area enough to need the
   // other, so size the content against the visible area twice.
   for (int pass = 0; pass < 2; ++pass) {
@@ -773,6 +783,7 @@ int FileExportScreen::layoutContent(juce::Rectangle<int> bounds) {
   // Add some padding
   bounds.removeFromLeft(kMainColumnPadding);
   auto rightSideBounds = bounds.removeFromLeft(kMainColumnWidth);
+  bool showShareButton = false;
 
   // Add the export audio components
   row = rightSideBounds.removeFromTop(rowHeight);
@@ -834,6 +845,8 @@ int FileExportScreen::layoutContent(juce::Rectangle<int> bounds) {
     auto videoErrorRow = rightSideBounds.removeFromTop(20);
     exportVideoFolderErrorLabel_.setBounds(
         videoErrorRow.removeFromLeft(componentWidth));
+
+    showShareButton = true;
   }
   // Hide video export/mux options.
   else {
@@ -846,6 +859,7 @@ int FileExportScreen::layoutContent(juce::Rectangle<int> bounds) {
     browseVideoButton_.setVisible(false);
     videoSourceErrorLabel_.setVisible(false);
     exportVideoFolderErrorLabel_.setVisible(false);
+    youtubeUploadButton_.setVisible(false);
   }
 
   // Draw in the manual export button
@@ -875,6 +889,17 @@ int FileExportScreen::layoutContent(juce::Rectangle<int> bounds) {
   bounds.removeFromLeft(kMainColumnPadding);
   auto validationBounds = bounds.removeFromLeft(kMainColumnWidth);
   exportValidation_.setBounds(validationBounds);
+
+  // Right-aligned to the validation column, 20 px below the top of the Mix
+  // presentations field's outlined box (which sits under a 20 px title band).
+  if (showShareButton) {
+    content_.addAndMakeVisible(youtubeUploadButton_);
+    youtubeUploadButton_.setBounds(
+        validationBounds.getRight() - YouTubeShareButton::kWidth,
+        mixPresentations_.getY() + 40, YouTubeShareButton::kWidth,
+        YouTubeShareButton::kHeight);
+    youtubeUploadButton_.toFront(false);
+  }
 
   return juce::jmax(leftSideBounds.getY(), rightSideBounds.getY()) +
          kContentBottomPadding;

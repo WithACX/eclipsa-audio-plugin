@@ -24,6 +24,7 @@
 #include "components/src/TimeFormatSegmentSelector.h"
 #include "components/src/TitledLabel.h"
 #include "components/src/TitledTextBox.h"
+#include "components/src/YouTubeShareButton.h"
 #include "data_repository/implementation/AudioElementRepository.h"
 #include "data_repository/implementation/FileExportRepository.h"
 #include "data_repository/implementation/MixPresentationRepository.h"
@@ -167,6 +168,7 @@ class FileExportScreen : public juce::Component,
   TitledTextBox videoSource_;
   juce::Label videoSourceErrorLabel_;
   juce::ImageButton browseVideoSourceButton_;
+  YouTubeShareButton youtubeUploadButton_;
 
   // Player elements
   ExportValidationComponent exportValidation_;
