@@ -19,6 +19,7 @@
 #include "src/ChannelListComponent.cpp"
 #include "src/ControlKnob.cpp"
 #include "src/ControlKnobSkewed.cpp"
+#include "src/DisplayFittedEditorSize.cpp"
 #include "src/EclipsaLookAndFeel.cpp"
 #include "src/SegmentedToggleButton.cpp"
 #include "src/SegmentedToggleImageButton.cpp"

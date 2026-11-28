@@ -66,6 +66,7 @@ class RendererEditor final : public MainEditor {
   MixPresentationWarningBanner mixPresentationWarningBanner_;
   MonitorScreen monitorScreen_;
   juce::Component* currentScreen_;
+  DisplayFittedEditorSize displayFit_;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(RendererEditor)
 };

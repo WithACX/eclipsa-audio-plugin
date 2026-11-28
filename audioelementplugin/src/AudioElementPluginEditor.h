@@ -114,6 +114,7 @@ class AudioElementPluginEditor final : public juce::AudioProcessorEditor,
   SelectionBox audioElementSelectionBox_;
   std::vector<bool>
       audioElementEnabled_;  // parallel to selection items for Logic gating
+  DisplayFittedEditorSize displayFit_;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(AudioElementPluginEditor)
 };
