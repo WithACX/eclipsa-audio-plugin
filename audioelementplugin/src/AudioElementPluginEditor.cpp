@@ -22,6 +22,7 @@
 
 #include "AudioElementPluginProcessor.h"
 #include "components/src/EclipsaColours.h"
+#include "components/src/EclipsaLookAndFeel.h"
 #include "data_structures/src/AudioElement.h"
 #include "data_structures/src/AudioElementSpatialLayout.h"
 #include "substream_rdr/substream_rdr_utils/Speakers.h"
@@ -143,7 +144,7 @@ AudioElementPluginEditor::AudioElementPluginEditor(
 
   // Configure the main editor labels
   panningControlsLabel_.setText("Panning Controls", juce::dontSendNotification);
-  panningControlsLabel_.setFont(juce::Font("Roboto", 14.0f, juce::Font::plain));
+  panningControlsLabel_.setFont(EclipsaLookAndFeel::roboto(14.f));
   panningControlsLabel_.setJustificationType(juce::Justification::centredRight);
   panningControlsLabel_.setColour(juce::Label::ColourIds::textColourId,
                                   EclipsaColours::tabTextGrey);
@@ -153,7 +154,7 @@ AudioElementPluginEditor::AudioElementPluginEditor(
 
   versionLabel_.setText("v" + juce::String(ECLIPSA_VERSION),
                         juce::dontSendNotification);
-  versionLabel_.setFont(juce::Font("Roboto", 10.0f, juce::Font::plain));
+  versionLabel_.setFont(EclipsaLookAndFeel::roboto(10.f));
   versionLabel_.setJustificationType(juce::Justification::bottomLeft);
   versionLabel_.setColour(juce::Label::ColourIds::textColourId,
                           EclipsaColours::buttonMSTextColour.withAlpha(0.3f));

@@ -19,6 +19,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "EclipsaColours.h"
+#include "EclipsaLookAndFeel.h"
 #include "Icons.h"
 
 // Pill button with the YouTube icon followed by white text, centered as one
@@ -49,7 +50,7 @@ class YouTubeShareButton : public juce::Button {
     g.setColour(fill.withMultipliedAlpha(alpha));
     g.fillRoundedRectangle(bounds, bounds.getHeight() * 0.5f);
 
-    const juce::Font font("Roboto", 15.0f, juce::Font::plain);
+    const juce::Font font = EclipsaLookAndFeel::roboto(15.f);
     const float textWidth = font.getStringWidthFloat(getButtonText());
     const float iconHeight = bounds.getHeight() * 0.4f;
     const float iconWidth =

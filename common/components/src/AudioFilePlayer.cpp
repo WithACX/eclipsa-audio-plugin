@@ -18,6 +18,7 @@
 
 #include "components/icons/svg/SvgIconLookup.h"
 #include "components/src/EclipsaColours.h"
+#include "components/src/EclipsaLookAndFeel.h"
 #include "data_structures/src/FilePlayback.h"
 
 class AudioFilePlayer::Spinner : public juce::Component, private juce::Timer {
@@ -92,12 +93,12 @@ AudioFilePlayer::AudioFilePlayer(FilePlaybackRepository& filePlaybackRepo,
   timeLabel_.setColour(juce::Label::ColourIds::backgroundColourId,
                        juce::Colours::transparentBlack);
   timeLabel_.setColour(juce::Label::textColourId, EclipsaColours::headingGrey);
-  timeLabel_.setFont(juce::Font("Roboto", 12.0f, juce::Font::plain));
+  timeLabel_.setFont(EclipsaLookAndFeel::roboto(12.f));
 
   fileSelectLabel_.setColour(juce::Label::ColourIds::backgroundColourId,
                              juce::Colours::transparentBlack);
   fileSelectLabel_.setColour(juce::Label::textColourId, EclipsaColours::red);
-  fileSelectLabel_.setFont(juce::Font("Roboto", 12.0f, juce::Font::plain));
+  fileSelectLabel_.setFont(EclipsaLookAndFeel::roboto(12.f));
   fileSelectLabel_.setJustificationType(juce::Justification::centred);
 
   playbackSlider_.setRange(0.0, 1.0);

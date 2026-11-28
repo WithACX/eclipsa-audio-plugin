@@ -110,8 +110,8 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
   endTimerErrorLabel_.setFont(errorFont);
   startTimerErrorLabel_.setJustificationType(juce::Justification::topLeft);
   endTimerErrorLabel_.setJustificationType(juce::Justification::topLeft);
-  startTimeFormatLabel_.setFont(juce::Font("Roboto", 11.0f, juce::Font::plain));
-  endTimeFormatLabel_.setFont(juce::Font("Roboto", 11.0f, juce::Font::plain));
+  startTimeFormatLabel_.setFont(EclipsaLookAndFeel::roboto(11.f));
+  endTimeFormatLabel_.setFont(EclipsaLookAndFeel::roboto(11.f));
   customCodecParameterErrorLabel_.setFont(errorFont);
   customCodecParameterErrorLabel_.setJustificationType(
       juce::Justification::topLeft);

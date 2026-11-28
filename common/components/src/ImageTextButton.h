@@ -41,7 +41,7 @@ class ImageTextButtonLookAndFeel : public juce::LookAndFeel_V4 {
   }
 
   juce::Font getTextButtonFont(juce::TextButton&, int) override {
-    return juce::Font(EclipsaLookAndFeel::kRoboto, 12.f, juce::Font::plain);
+    return EclipsaLookAndFeel::roboto(12.f);
   }
 
   void drawButtonText(juce::Graphics& g, juce::TextButton& button,

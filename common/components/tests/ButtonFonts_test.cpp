@@ -92,3 +92,20 @@ TEST(ButtonFonts, meter_solo_mute_buttons_are_14_point_roboto) {
 
   expectRoboto14(lookAndFeel);
 }
+
+// Verifies the grey and cyan image buttons (Add Mix Presentation, tags,
+// Delete) keep the 12 pt they drew at before Roboto was bundled.
+TEST(ButtonFonts, grey_and_cyan_buttons_are_12_point_roboto) {
+  const juce::ScopedJuceInitialiser_GUI kJuce;
+  const ScopedEclipsaDefaultLookAndFeel scope;
+  GreyImageTextButtonLookAndFeel grey{juce::Image()};
+  CyanImageTextButtonLookAndFeel cyan{juce::Image()};
+  juce::TextButton button;
+
+  for (juce::LookAndFeel* lookAndFeel :
+       std::initializer_list<juce::LookAndFeel*>{&grey, &cyan}) {
+    const juce::Font font = lookAndFeel->getTextButtonFont(button, 40);
+    EXPECT_EQ(font.getTypefaceName(), EclipsaLookAndFeel::kRoboto);
+    EXPECT_NEAR(font.getHeightInPoints(), 12.0f, 0.01f);
+  }
+}
