@@ -168,9 +168,8 @@ void RoomMonitoringScreen::paint(juce::Graphics& g) {
 
   // Draw export profile dropdown and export button.
   const int topWidth = topBounds.getWidth();
-  const int profileWidth =
-      std::max(static_cast<int>(topWidth * 0.20f),
-               exportProfile_.widthToFitOptions(topBounds.getHeight()));
+  const int profileWidth = std::max(static_cast<int>(topWidth * 0.20f),
+                                    exportProfile_.widthToFitOptions());
   exportProfile_.setBounds(topBounds.removeFromLeft(profileWidth));
 
   // Adjusted button width to accommodate images and text

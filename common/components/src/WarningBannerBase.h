@@ -19,6 +19,7 @@
 #include <juce_gui_basics/juce_gui_basics.h>
 
 #include "../../logger/logger.h"
+#include "EclipsaLookAndFeel.h"
 #include "Icons.h"
 
 // Shared visual chrome for dismissible, single-line warning banners: a
@@ -67,11 +68,13 @@ class WarningBannerBase : public juce::Component,
     Component::setVisible(shouldBeVisible);
   }
 
+  static juce::Font messageFont() { return EclipsaLookAndFeel::roboto(14.f); }
+
   void paint(juce::Graphics& g) override {
     g.fillAll(fillColour_);
 
     g.setColour(juce::Colours::black);
-    g.setFont(14.0f);
+    g.setFont(messageFont());
 
     g.drawText(getMessageText(),
                getLocalBounds().reduced(10, 2).withTrimmedRight(40),

@@ -22,7 +22,9 @@
 #include "logger/logger.h"
 
 CustomTabbedComponent::CustomTabbedComponent()
-    : juce::TabbedComponent(juce::TabbedButtonBar::Orientation::TabsAtTop) {}
+    : juce::TabbedComponent(juce::TabbedButtonBar::Orientation::TabsAtTop) {
+  setLookAndFeel(&lookAndFeel_);
+}
 
 CustomTabbedComponent::~CustomTabbedComponent() { setLookAndFeel(nullptr); }
 

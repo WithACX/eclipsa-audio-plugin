@@ -24,6 +24,7 @@
 #include <map>
 
 #include "EclipsaColours.h"
+#include "OutlineTitle.h"
 
 /*
   Creates a selection box object, which consists of both a title and combo box
@@ -36,6 +37,14 @@ class SelectionBoxLookAndFeel : public juce::LookAndFeel_V4 {
   SelectionBoxLookAndFeel(juce::String title, juce::Image image)
       : title_(title), image_(image) {
     applycolours();
+  }
+
+  juce::Font getComboBoxFont(juce::ComboBox&) override {
+    return EclipsaLookAndFeel::roboto(14.f);
+  }
+
+  juce::Font getPopupMenuFont() override {
+    return EclipsaLookAndFeel::roboto(14.f);
   }
 
   void positionComboBoxText(juce::ComboBox& box, juce::Label& label) override {
@@ -59,22 +68,10 @@ class SelectionBoxLookAndFeel : public juce::LookAndFeel_V4 {
     g.drawRoundedRectangle(boxBounds.toFloat().reduced(0.5f, 0.5f), cornerSize,
                            1.0f);
 
-    // Draw the title information
-    boxBounds.removeFromLeft(10);
-    // draw the border label/title
     if (title_ != "") {
-      auto font = juce::Font("Roboto", 12.0f, juce::Font::plain);
-      int titleWidth = font.getStringWidth(title_);
-
-      auto titleBounds =
-          boxBounds.removeFromTop(15).removeFromLeft(titleWidth + 5);
-
-      g.setColour(box.findColour(juce::ComboBox::backgroundColourId));
-      g.fillRect(titleBounds.toFloat());
-      g.setColour(box.findColour(juce::ComboBox::outlineColourId));
-      g.setFont(font);
-      g.drawText(title_, titleBounds.removeFromTop(8),
-                 juce::Justification::centred);
+      OutlineTitle::draw(g, title_, 12.5f, titleBuffer + 0.5f, 2.5f,
+                         box.findColour(juce::ComboBox::outlineColourId),
+                         box.findColour(juce::ComboBox::backgroundColourId));
     }
 
     juce::Rectangle<int> arrowZone(width - 30, titleBuffer, 20,
@@ -88,8 +85,9 @@ class SelectionBoxLookAndFeel : public juce::LookAndFeel_V4 {
     g.fillPath(path);
 
     g.setColour(box.findColour(juce::ComboBox::textColourId));
-    g.setFont(box.getLookAndFeel().getComboBoxFont(box));
-    auto fontHeight = juce::roundToInt(g.getCurrentFont().getHeight());
+    const juce::Font font = box.getLookAndFeel().getComboBoxFont(box);
+    g.setFont(font);
+    auto fontHeight = juce::roundToInt(font.getHeight());
     juce::Rectangle<int> textArea(15, titleBuffer + 1, width - 30,
                                   height - 2 - titleBuffer);
     juce::String textToDraw = box.getText();
@@ -103,7 +101,8 @@ class SelectionBoxLookAndFeel : public juce::LookAndFeel_V4 {
       textToDraw = textToDraw.substring(0, endIndex);
       textToDraw += "...";
     }
-    g.drawFittedText(textToDraw, textArea, juce::Justification::centredLeft, 1);
+    CapCentredText::draw(g, font, textToDraw, textArea.getX(),
+                         titleBuffer + (height - titleBuffer) / 2.f);
     if (image_.isValid()) {
       auto imageRect =
           juce::Rectangle<float>(textArea.getX() - fontHeight * 2.25f,
@@ -163,7 +162,8 @@ class SelectionBoxLookAndFeel : public juce::LookAndFeel_V4 {
     setColour(juce::ComboBox::backgroundColourId,
               EclipsaColours::backgroundOffBlack);
     setColour(juce::ComboBox::outlineColourId, EclipsaColours::tabTextGrey);
-    setColour(juce::ComboBox::textColourId, EclipsaColours::tabTextGrey);
+    // Matches the text typed into a TitledTextBox.
+    setColour(juce::ComboBox::textColourId, EclipsaColours::headingGrey);
     setColour(juce::ComboBox::buttonColourId, EclipsaColours::headingGrey);
     setColour(juce::ComboBox::focusedOutlineColourId,
               EclipsaColours::headingGrey);
@@ -191,7 +191,7 @@ class OffSelectionBoxLookAndFeel : public SelectionBoxLookAndFeel {
     setColour(juce::ComboBox::outlineColourId,
               EclipsaColours::tabTextGrey.withAlpha(alpha));
     setColour(juce::ComboBox::textColourId,
-              EclipsaColours::tabTextGrey.withAlpha(alpha));
+              EclipsaColours::headingGrey.withAlpha(alpha));
     setColour(juce::ComboBox::buttonColourId,
               EclipsaColours::headingGrey.withAlpha(alpha));
     setColour(juce::ComboBox::focusedOutlineColourId,
@@ -266,15 +266,11 @@ class SelectionBox : public juce::Component {
   // Width at which the longest option draws without truncation at height.
   // drawComboBox starts the text 15 px in and draws the arrow in the last
   // 30 px.
-  int widthToFitOptions(const int height) {
+  int widthToFitOptions() {
     constexpr int kInsetAndArrow = 45;
     constexpr int kSlack = 4;
-    // The combo box font scales with height; measure at the target height
-    // without resizing this component.
-    juce::ComboBox probe;
-    probe.setSize(1, height);
     const juce::Font font =
-        selectionBox_.getLookAndFeel().getComboBoxFont(probe);
+        selectionBox_.getLookAndFeel().getComboBoxFont(selectionBox_);
     float widest = 0.0f;
     for (int i = 0; i < selectionBox_.getNumItems(); ++i) {
       widest = std::max(widest,

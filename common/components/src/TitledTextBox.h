@@ -23,9 +23,10 @@
 #endif
 
 #include "../components.h"
+#include "OutlineTitle.h"
 
 class TitledTextBox : public juce::Component {
-  juce::Label titleLabel_;
+  juce::String title_;
   juce::TextEditor textEditor_;
   juce::Colour outlineColour_;
   int titleBuffer_;
@@ -35,29 +36,24 @@ class TitledTextBox : public juce::Component {
 
  public:
   TitledTextBox(juce::String title)
-      : juce::Component(), titleLabel_(title), textEditor_(), titleBuffer_(20) {
+      : juce::Component(), title_(title), textEditor_(), titleBuffer_(20) {
     // Set the outline colour to the enabled colour state
     resetLookAndFeel();
 
-    // Configure the title label
-    auto font = juce::Font("Roboto", 12.0f, juce::Font::plain);
-    titleLabel_.setFont(font);
-    titleLabel_.setColour(juce::Label::backgroundColourId,
-                          EclipsaColours::backgroundOffBlack);
-
-    // Configure the text editor
-    textEditor_.setJustification(juce::Justification::topLeft);
-    titleLabel_.setText(title, juce::NotificationType::dontSendNotification);
-
+    // The editor overlaps the title, so it draws no background or outline of
+    // its own. With no border or top indent, its line centres in its bounds.
+    textEditor_.setJustification(juce::Justification::centredLeft);
+    textEditor_.setBorder(juce::BorderSize<int>(0));
+    textEditor_.setIndents(textEditor_.getLeftIndent(), 0);
     textEditor_.setColour(juce::TextEditor::backgroundColourId,
-                          EclipsaColours::backgroundOffBlack);
+                          juce::Colours::transparentBlack);
     textEditor_.setColour(juce::TextEditor::outlineColourId,
-                          EclipsaColours::backgroundOffBlack);
+                          juce::Colours::transparentBlack);
     textEditor_.setColour(juce::TextEditor::focusedOutlineColourId,
-                          EclipsaColours::backgroundOffBlack);
+                          juce::Colours::transparentBlack);
     textEditor_.setColour(juce::TextEditor::textColourId,
                           EclipsaColours::headingGrey);
-    textEditor_.setFont(juce::Font("Roboto", 14.0f, juce::Font::plain));
+    textEditor_.setFont(EclipsaLookAndFeel::roboto(14.f));
     textEditor_.onReturnKey = [this]() { handleReturnKey(); };
     textEditor_.onFocusLost = [this]() { handleFocusLost(); };
   }
@@ -94,30 +90,12 @@ class TitledTextBox : public juce::Component {
     g.drawRoundedRectangle(boxBounds.toFloat().reduced(0.5f, 0.5f), cornerSize,
                            1.0f);
 
-    // Draw the label over the outline
-    // The label width requires some padding or it has issues with single
-    // character labels. The padding is roughly one character wide.
-    auto labelWidth =
-        titleLabel_.getFont().getStringWidth(titleLabel_.getText()) + 8;
-    auto labelHeight = titleLabel_.getFont().getHeight();
-    juce::Rectangle<int> labelBounds = juce::Rectangle<int>(
-        boxBounds.getX() + 10, (boxBounds.getY() - labelHeight / 2) + 3,
-        labelWidth, labelHeight);
-    titleLabel_.setBounds(labelBounds);
-    addAndMakeVisible(titleLabel_);
+    OutlineTitle::draw(g, title_, boxBounds.getX() + 15.f,
+                       boxBounds.getY() + 0.5f, 5.f, outlineColour_,
+                       EclipsaColours::backgroundOffBlack);
 
-    // Create bounds which encapusulate inside the outline
-    boxBounds.reduce(10, 5);
-
-    // Draw the text box centered inside the outline
     addAndMakeVisible(textEditor_);
-    textEditor_.setBounds(boxBounds);
-    // Add some leaway for text height as it doesn't account for characters like
-    // g which go below the line
-    auto textHeight = textEditor_.getFont().getHeight() + 6;
-    auto boxBoundsTrim = ((boxBounds.getHeight() - textHeight) / 2) - 1;
-    boxBounds.removeFromTop(boxBoundsTrim);
-    textEditor_.setBounds(boxBounds.removeFromTop(textHeight + 15));
+    textEditor_.setBounds(boxBounds.reduced(10, 1));
     textEditor_.setMultiLine(false);
   }
 
@@ -144,7 +122,6 @@ class TitledTextBox : public juce::Component {
 
   void updateOutlineColour(juce::Colour colour) {
     outlineColour_ = colour;
-    titleLabel_.setColour(juce::Label::textColourId, outlineColour_);
     repaint();
   }
 

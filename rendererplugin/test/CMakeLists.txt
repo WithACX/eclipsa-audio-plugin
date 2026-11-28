@@ -17,3 +17,5 @@ eclipsa_add_test(test_renderer_version_converter RendererVersionConverter_test.c
 eclipsa_add_test(test_element_routing_profile ElementRoutingProfile_test.cpp "RendererPlugin;processors")
 eclipsa_add_test(test_edit_presentation_screen EditPresentationScreen_test.cpp "RendererPlugin;processors")
 eclipsa_add_test(test_file_export_screen FileExportScreen_test.cpp "RendererPlugin;processors")
+eclipsa_add_test(test_header_bar HeaderBar_test.cpp "RendererPlugin;processors")
+eclipsa_add_test(test_presentation_tabs PresentationTabs_test.cpp "RendererPlugin;processors")

@@ -14,6 +14,8 @@
 
 #include "LoudnessStats.h"
 
+#include "components/src/EclipsaLookAndFeel.h"
+
 LoudnessStats::LoudnessStats(SpeakerMonitorData& data)
     : statsToDisp_("Loudness Standard"), rtData_(data) {
   statsToDisp_.setText("ITU-R BS.1770-4");
@@ -51,6 +53,8 @@ LoudnessStats::LoudnessStats(SpeakerMonitorData& data)
 
 void LoudnessStats::configureLabels(LabelWithVal& label) {
   juce::BorderSize<int> border(1, 0, 1, 0);
+  label.first.setFont(EclipsaLookAndFeel::roboto(14.f));
+  label.second.setFont(EclipsaLookAndFeel::roboto(14.f));
   label.first.setBorderSize(border);
   label.second.setBorderSize(border);
   label.first.setMinimumHorizontalScale(0.1f);

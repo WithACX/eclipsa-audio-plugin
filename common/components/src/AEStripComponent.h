@@ -31,6 +31,8 @@
 class AEStripLookandFeel : public juce::LookAndFeel_V4 {
  public:
   AEStripLookandFeel();
+
+  juce::Font getTextButtonFont(juce::TextButton&, int) override;
 };
 
 class AEStripComponent : public juce::Component,

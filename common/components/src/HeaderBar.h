@@ -22,6 +22,8 @@
 #endif
 
 #include "../components.h"
+#include "CapCentredText.h"
+#include "EclipsaLookAndFeel.h"
 #include "Icons.h"
 #include "components/src/EclipsaColours.h"
 #include "components/src/MainEditor.h"
@@ -50,8 +52,10 @@ class HeaderBarLookAndFeel : public juce::LookAndFeel_V4 {
 class HeaderBar : public juce::Component {
   juce::String title_;
   juce::ImageButton backButton_;
-  juce::Label titleLabel_;
+  CapCentredLabel titleLabel_;
   HeaderBarLookAndFeel lookAndFeel_;
+
+  static constexpr int kBackIconSize = 18;
 
  public:
   HeaderBar(juce::String title, MainEditor& editor) : juce::Component() {
@@ -68,35 +72,24 @@ class HeaderBar : public juce::Component {
   void paint(juce::Graphics& g) override {
     auto bounds = getLocalBounds();
 
-    // Set font and calculate label height
-    juce::Font font("Roboto", 22.0f, juce::Font::plain);
-    titleLabel_.setFont(font);
-    float labelHeight = font.getHeight();
+    titleLabel_.setFont(EclipsaLookAndFeel::roboto(22.f));
 
-    // Load and resize the back arrow icon to match label height
-    juce::Image labelImage = IconStore::getInstance().getBackArrowIcon();
-    float iconSize =
-        labelHeight * 0.85f;  // Adjust the icon size slightly smaller than
-                              // label height for aesthetics
-    juce::Image resizedIcon = labelImage.rescaled(
-        static_cast<int>(iconSize), static_cast<int>(iconSize),
-        juce::Graphics::highResamplingQuality);
+    juce::Image resizedIcon =
+        IconStore::getInstance().getBackArrowIcon().rescaled(
+            kBackIconSize, kBackIconSize,
+            juce::Graphics::highResamplingQuality);
 
-    // Configure back button
     addAndMakeVisible(backButton_);
     backButton_.setImages(false, true, true, resizedIcon, 1.0f,
                           juce::Colours::transparentBlack, resizedIcon, 1.0f,
                           juce::Colours::grey, resizedIcon, 0.8f,
                           juce::Colours::white);
 
-    // Position the back button with a slight vertical adjustment to center it
-    // with the label
-    int buttonWidth = static_cast<int>(iconSize) + 10;  // Adding 10px padding
-    auto buttonBounds = bounds.removeFromLeft(buttonWidth);
-    buttonBounds.setHeight(static_cast<int>(iconSize));
-    buttonBounds.setY((getHeight() - buttonBounds.getHeight()) / 2 -
-                      2);  // Center and adjust vertically
-    backButton_.setBounds(buttonBounds);
+    // The title label spans the full height and centres its capitals, so a
+    // vertically centred icon lines up with them.
+    auto buttonBounds = bounds.removeFromLeft(kBackIconSize + 10);
+    backButton_.setBounds(buttonBounds.withSizeKeepingCentre(
+        buttonBounds.getWidth(), kBackIconSize));
 
     // Configure title label
     addAndMakeVisible(titleLabel_);

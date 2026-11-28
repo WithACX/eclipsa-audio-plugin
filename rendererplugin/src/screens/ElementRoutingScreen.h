@@ -20,8 +20,10 @@
 #include <memory>
 #include <vector>
 
+#include "components/src/CapCentredText.h"
 #include "components/src/ColouredLight.h"
 #include "components/src/EclipsaColours.h"
+#include "components/src/EclipsaLookAndFeel.h"
 #include "components/src/HeaderBar.h"
 #include "components/src/Icons.h"
 #include "components/src/SelectionBox.h"
@@ -146,7 +148,7 @@ class ElementRoutingScreen : public juce::Component,
   HeaderBar headerBar_;
   SelectionBox profileSelectionBox_;
   SelectionButton addAudioElementButton_;
-  juce::Label tracksLabel_;
+  CapCentredLabel tracksLabel_;
   juce::Label remainingChannelsLabel_;
   AudioElementRepository* audioElementRepository_;
   MultibaseAudioElementSpatialLayoutRepository*
@@ -191,6 +193,7 @@ class PannerLabel : public juce::Component {
   PannerLabel(juce::String name, juce::Colour bgColour)
       : backgroundColour_(bgColour) {
     name_.setText(name, juce::NotificationType::dontSendNotification);
+    name_.setFont(EclipsaLookAndFeel::roboto(16.f));
     juce::Image labelImage = IconStore::getInstance().getTrackIcon();
     bullet_.setImage(labelImage);
   }
@@ -215,7 +218,7 @@ class PannerLabel : public juce::Component {
 
  private:
   juce::Colour backgroundColour_;
-  juce::Label name_;
+  CapCentredLabel name_;
   juce::ImageComponent bullet_;
 };
 

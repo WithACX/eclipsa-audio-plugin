@@ -99,10 +99,9 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
   exportButton_.setColour(juce::TextButton::textColourOffId,
                           EclipsaColours::green);
 
-  juce::Font textFont = juce::Font("Roboto", 22.0f, juce::Font::plain);
-  juce::Font labelFont = juce::Font("Roboto", 18.0f, juce::Font::plain);
-  juce::Font smallLabelFont = juce::Font("Roboto", 16.0f, juce::Font::plain);
-  juce::Font errorFont = juce::Font("Roboto", 12.0f, juce::Font::plain);
+  const juce::Font textFont = EclipsaLookAndFeel::roboto(22.f);
+  const juce::Font labelFont = EclipsaLookAndFeel::roboto(16.f);
+  const juce::Font errorFont = EclipsaLookAndFeel::roboto(12.f);
   exportParametersLabel_.setFont(textFont);
   exportAudioElementsLabel_.setFont(labelFont);
   exportAudioLabel_.setFont(textFont);
@@ -111,10 +110,9 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
   endTimerErrorLabel_.setFont(errorFont);
   startTimerErrorLabel_.setJustificationType(juce::Justification::topLeft);
   endTimerErrorLabel_.setJustificationType(juce::Justification::topLeft);
-  startTimeFormatLabel_.setFont(juce::Font("Roboto", 11.0f, juce::Font::plain));
-  endTimeFormatLabel_.setFont(juce::Font("Roboto", 11.0f, juce::Font::plain));
-  customCodecParameterErrorLabel_.setFont(
-      juce::Font("Roboto", 12.0f, juce::Font::plain));
+  startTimeFormatLabel_.setFont(EclipsaLookAndFeel::roboto(11.f));
+  endTimeFormatLabel_.setFont(EclipsaLookAndFeel::roboto(11.f));
+  customCodecParameterErrorLabel_.setFont(errorFont);
   customCodecParameterErrorLabel_.setJustificationType(
       juce::Justification::topLeft);
 
@@ -630,6 +628,7 @@ FileExportScreen::FileExportScreen(MainEditor& editor,
   content_.addAndMakeVisible(exportValidation_);
 
   content_.addAndMakeVisible(warningLabel_);
+  warningLabel_.setFont(EclipsaLookAndFeel::roboto(12.f));
   warningLabel_.setColour(juce::Label::ColourIds::textColourId,
                           EclipsaColours::red);
   refreshFileExportComponents();

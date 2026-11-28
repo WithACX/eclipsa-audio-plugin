@@ -18,6 +18,7 @@
 
 #include "../rendererplugin/src/RendererProcessor.h"
 #include "components/src/EclipsaColours.h"
+#include "components/src/EclipsaLookAndFeel.h"
 #include "data_repository/implementation/MixPresentationRepository.h"
 #include "data_structures/src/ChannelMonitorData.h"
 #include "data_structures/src/MixPresentation.h"
@@ -34,6 +35,10 @@ AEStripLookandFeel::AEStripLookandFeel() {
 
   setColour(juce::Label::backgroundColourId, juce::Colours::transparentWhite);
   setColour(juce::Label::textColourId, EclipsaColours::headingGrey);
+}
+
+juce::Font AEStripLookandFeel::getTextButtonFont(juce::TextButton&, int) {
+  return EclipsaLookAndFeel::roboto(14.f);
 }
 
 AEStripComponent::AEStripComponent(

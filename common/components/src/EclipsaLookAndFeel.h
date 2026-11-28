@@ -18,15 +18,21 @@
 
 // Serves the Audiowide typeface compiled into the plugin, so a juce::Font that
 // names it renders in Audiowide whether or not the font is installed; every
-// weight and style maps to the one bundled face. A font that names Roboto
-// renders in robotoSubstituteName() at its own size and style.
+// weight and style maps to the one bundled face. On macOS a font that names
+// Roboto gets the bundled Roboto the same way; elsewhere it renders in
+// robotoSubstituteName() at its own size and style.
 class EclipsaLookAndFeel final : public juce::LookAndFeel_V4 {
  public:
   static constexpr const char* kAudiowide = "Audiowide";
   static constexpr const char* kRoboto = "Roboto";
 
-  // The family Roboto text draws in: Helvetica on macOS, Arial on Windows.
+  // The family Roboto text draws in when the bundled face is not served:
+  // Arial on Windows, the default sans-serif on Linux, Helvetica on macOS.
   static juce::String robotoSubstituteName();
+
+  // Plain Roboto at a Figma point size; a juce::Font height also counts line
+  // spacing, so it reads smaller than the same number in Figma.
+  static juce::Font roboto(float points);
 
   EclipsaLookAndFeel();
 
@@ -34,6 +40,7 @@ class EclipsaLookAndFeel final : public juce::LookAndFeel_V4 {
 
  private:
   const juce::Typeface::Ptr audiowide_;
+  const juce::Typeface::Ptr roboto_;
 
   JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR(EclipsaLookAndFeel)
 };

@@ -16,6 +16,7 @@
 
 #include "components/src/DAWWarningBanner.h"
 #include "components/src/EclipsaColours.h"
+#include "components/src/EclipsaLookAndFeel.h"
 #include "screens/MonitorScreen.h"
 
 CustomLookAndFeel::CustomLookAndFeel() {
@@ -168,7 +169,7 @@ void RendererEditor::paint(juce::Graphics& g) {
 
   versionLabel_.setText("v" + juce::String(ECLIPSA_VERSION),
                         juce::dontSendNotification);
-  versionLabel_.setFont(juce::Font("Roboto", 10.0f, juce::Font::plain));
+  versionLabel_.setFont(EclipsaLookAndFeel::roboto(10.f));
   versionLabel_.setJustificationType(juce::Justification::bottomLeft);
   versionLabel_.setColour(juce::Label::ColourIds::textColourId,
                           EclipsaColours::buttonMSTextColour.withAlpha(0.3f));

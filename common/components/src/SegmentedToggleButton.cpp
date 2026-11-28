@@ -15,6 +15,7 @@
 #include "SegmentedToggleButton.h"
 
 #include "components/src/EclipsaColours.h"
+#include "components/src/EclipsaLookAndFeel.h"
 
 STBLookAndFeel::STBLookAndFeel() {
   // Text colours.
@@ -30,6 +31,10 @@ STBLookAndFeel::STBLookAndFeel() {
             EclipsaColours::onButtonGrey);
 }
 
+juce::Font STBLookAndFeel::getTextButtonFont(juce::TextButton&, int) {
+  return EclipsaLookAndFeel::roboto(14.f);
+}
+
 void STBLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& btn,
                                     bool shouldDrawButtonAsHighlighted,
                                     bool shouldDrawButtonAsDown) {
@@ -41,6 +46,7 @@ void STBLookAndFeel::drawButtonText(juce::Graphics& g, juce::TextButton& btn,
     colour = colour.withAlpha(0.35f);
   }
   g.setColour(colour);
+  g.setFont(getTextButtonFont(btn, btn.getHeight()));
   g.drawFittedText(btn.getButtonText(), bounds, juce::Justification::centred, 1,
                    0.2f);
 }
