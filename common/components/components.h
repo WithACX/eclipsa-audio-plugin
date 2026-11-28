@@ -37,6 +37,7 @@ END_JUCE_MODULE_DECLARATION
 #include "src/DAWCompatibilityChecker.h"
 #include "src/DAWWarningBanner.h"
 #include "src/DialIndicator.h"
+#include "src/DisplayFittedEditorSize.h"
 #include "src/EclipsaColours.h"
 #include "src/EclipsaLookAndFeel.h"
 #include "src/ExportErrorBanner.h"

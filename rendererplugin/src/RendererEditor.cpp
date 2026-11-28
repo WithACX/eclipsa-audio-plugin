@@ -73,52 +73,9 @@ RendererEditor::RendererEditor(RendererProcessor& p)
                      p.getChannelMonitorData(),
                      p.getFilePlaybackProcessorData(), *this,
                      p.getMainBusNumInputChannels()),
-      currentScreen_(&monitorScreen_) {
-  setResizable(true, true);
-
-  // Get screen dimensions and calculate appropriate size
-  auto displays = juce::Desktop::getInstance().getDisplays();
-  auto mainDisplay = displays.getPrimaryDisplay();
-
-  if (mainDisplay != nullptr) {
-    auto screenArea = mainDisplay->userArea;
-
-    int maxWidth =
-        static_cast<int>(screenArea.getWidth() * 1.0f);  // 100% of screen width
-    int maxHeight = static_cast<int>(screenArea.getHeight() *
-                                     1.0f);  // 100% of screen height
-
-    // Preferred size but constrained by screen
-    int preferredWidth = 1600;
-    int preferredHeight = 752;
-
-    int actualWidth = juce::jmin(preferredWidth, maxWidth);
-    int actualHeight = juce::jmin(preferredHeight, maxHeight);
-
-    // Round to even numbers to avoid rendering artifacts
-    actualWidth = (actualWidth + 1) & ~1;    // Round up to even number
-    actualHeight = (actualHeight + 1) & ~1;  // Round up to even number
-
-    setSize(actualWidth, actualHeight);
-
-    // Set resize limits that force even dimensions to prevent artifacts
-    int minWidth =
-        juce::jmin(800, static_cast<int>(screenArea.getWidth() * 0.5f));
-    int minHeight =
-        juce::jmin(500, static_cast<int>(screenArea.getHeight() * 0.35f));
-
-    // Ensure all resize limits are even numbers
-    minWidth = (minWidth + 1) & ~1;
-    minHeight = (minHeight + 1) & ~1;
-    maxWidth = (maxWidth + 1) & ~1;
-    maxHeight = (maxHeight + 1) & ~1;
-
-    setResizeLimits(minWidth, minHeight, maxWidth, maxHeight);
-  } else {
-    // Fallback if screen detection fails
-    setSize(1200, 650);
-    setResizeLimits(800, 500, 1600, 900);
-  }
+      currentScreen_(&monitorScreen_),
+      displayFit_(*this) {
+  displayFit_.applyInitialSize(1600, 752);
 
   // Set up the look and feel information here
   setLookAndFeel(&customLookAndFeel_);
